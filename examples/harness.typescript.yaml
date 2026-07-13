@@ -1,0 +1,40 @@
+version: 1
+
+project:
+  id: example-typescript-project
+  language: typescript
+  default_branch: main
+  portfolio_categories:
+    - typescript
+
+commands:
+  setup:
+    - npm install
+  format:
+    - npm run format -- --check
+  lint:
+    - npm run lint
+  typecheck:
+    - npm run typecheck
+  test:
+    - npm test
+  security:
+    - npm audit --audit-level=high
+
+agent_instructions:
+  codex:
+    - AGENTS.md
+  claude:
+    - CLAUDE.md
+
+protected_paths:
+  - .github/workflows
+  - infrastructure
+  - migrations
+  - security
+  - auth
+
+evidence: {}
+
+concurrency:
+  maximum_active_tasks: 2

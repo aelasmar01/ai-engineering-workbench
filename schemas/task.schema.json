@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.local/ai-engineering-workbench/task.schema.json",
+  "title": "AI Engineering Workbench Task",
+  "description": "Milestone 0 placeholder schema. Full validation is implemented in Milestone 1 and Milestone 3.",
+  "type": "object",
+  "required": ["id", "project", "title", "objective", "acceptance_criteria"],
+  "properties": {
+    "id": { "type": "string", "minLength": 1 },
+    "project": { "type": "string", "minLength": 1 },
+    "title": { "type": "string", "minLength": 1 },
+    "objective": { "type": "string", "minLength": 1 },
+    "acceptance_criteria": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 1 }
+    }
+  }
+}

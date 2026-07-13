@@ -1,0 +1,42 @@
+version: 1
+
+project:
+  id: example-python-project
+  language: python
+  default_branch: main
+  portfolio_categories:
+    - python
+
+commands:
+  setup:
+    - uv sync
+  format:
+    - uv run ruff format --check .
+  lint:
+    - uv run ruff check .
+  typecheck:
+    - uv run mypy src
+  test:
+    - uv run pytest
+  security:
+    - uv run bandit -r src
+
+agent_instructions:
+  codex:
+    - AGENTS.md
+  claude:
+    - CLAUDE.md
+
+protected_paths:
+  - .github/workflows
+  - infrastructure
+  - migrations
+  - security
+  - auth
+
+evidence:
+  junit: reports/junit.xml
+  coverage: coverage.xml
+
+concurrency:
+  maximum_active_tasks: 2

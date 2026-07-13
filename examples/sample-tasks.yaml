@@ -1,0 +1,21 @@
+tasks:
+  - id: WB-001
+    project: example-python-project
+    title: Add a health endpoint test
+    type: test
+    priority: medium
+    estimated_minutes: 30
+    objective: Add coverage for the API health endpoint.
+    acceptance_criteria:
+      - Health endpoint returns ok
+      - Test runs in the backend test suite
+    constraints:
+      - Do not add network API calls
+    expected_paths:
+      - src
+      - tests
+    required_checks:
+      - test
+    portfolio_signals:
+      - Python engineering
+    dependencies: []
