@@ -4,15 +4,22 @@ import json
 import shutil
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, NoReturn
+from typing import Annotated, Any, NoReturn
 
 import typer
 from rich.console import Console
 from rich.table import Table
 
 from workbench import __version__
+from workbench.agents.service import (
+    launch_agent_session,
+    list_agent_providers,
+    refresh_agent_session_status,
+    stop_agent_session,
+)
 from workbench.config.settings import WorkbenchSettings, load_settings
 from workbench.database.repositories import (
+    AgentSessionRepository,
     ProjectRepository,
     TaskRepository,
     ValidationRunRepository,
@@ -23,6 +30,8 @@ from workbench.database.session import (
     create_sqlite_engine,
     initialize_database,
 )
+from workbench.domain.agents import AgentSession
+from workbench.domain.enums import AgentProvider, AgentRole
 from workbench.domain.errors import WorkbenchError
 from workbench.domain.projects import Project
 from workbench.domain.tasks import Task
@@ -38,9 +47,11 @@ app = typer.Typer(help="Local-first AI engineering control plane.")
 project_app = typer.Typer(help="Register and inspect local Git repositories.")
 task_app = typer.Typer(help="Import and manage backlog tasks.")
 worktree_app = typer.Typer(help="Inspect and remove task worktrees.")
+agent_app = typer.Typer(help="Launch and inspect local agent sessions.")
 app.add_typer(project_app, name="project")
 app.add_typer(task_app, name="task")
 app.add_typer(worktree_app, name="worktree")
+app.add_typer(agent_app, name="agent")
 console = Console()
 error_console = Console(stderr=True)
 
@@ -117,6 +128,7 @@ def _full_repository_context() -> tuple[
     TaskRepository,
     WorktreeRepository,
     ValidationRunRepository,
+    AgentSessionRepository,
     WorkbenchSettings,
 ]:
     settings = load_settings()
@@ -130,6 +142,7 @@ def _full_repository_context() -> tuple[
         TaskRepository(session),
         WorktreeRepository(session),
         ValidationRunRepository(session),
+        AgentSessionRepository(session),
         settings,
     )
 
@@ -205,6 +218,29 @@ def _validation_payload(validation_run: ValidationRun) -> dict[str, Any]:
     }
 
 
+def _agent_session_payload(agent_session: AgentSession) -> dict[str, Any]:
+    return {
+        "id": agent_session.id,
+        "task_id": agent_session.task_id,
+        "worktree_id": agent_session.worktree_id,
+        "agent_provider": agent_session.agent_provider.value,
+        "agent_role": agent_session.agent_role.value,
+        "process_id": agent_session.process_id,
+        "command_used": agent_session.command_used,
+        "prompt_packet_location": str(agent_session.prompt_packet_location),
+        "log_location": str(agent_session.log_location),
+        "start_time": agent_session.start_time.isoformat(),
+        "end_time": agent_session.end_time.isoformat() if agent_session.end_time else None,
+        "last_activity_time": (
+            agent_session.last_activity_time.isoformat()
+            if agent_session.last_activity_time
+            else None
+        ),
+        "exit_code": agent_session.exit_code,
+        "status": agent_session.status.value,
+    }
+
+
 def _print_project_table(projects: list[Project]) -> None:
     table = Table(title="Registered Projects")
     table.add_column("ID")
@@ -275,6 +311,28 @@ def _print_validation_table(
             validation_run.status.value,
             "" if validation_run.exit_code is None else str(validation_run.exit_code),
             str(validation_run.output_path),
+        )
+    console.print(table)
+
+
+def _print_agent_session_table(
+    agent_sessions: list[AgentSession], *, title: str = "Agent Sessions"
+) -> None:
+    table = Table(title=title)
+    table.add_column("ID")
+    table.add_column("Task")
+    table.add_column("Agent")
+    table.add_column("Role")
+    table.add_column("Status")
+    table.add_column("PID")
+    for agent_session in agent_sessions:
+        table.add_row(
+            agent_session.id,
+            agent_session.task_id,
+            agent_session.agent_provider.value,
+            agent_session.agent_role.value,
+            agent_session.status.value,
+            "" if agent_session.process_id is None else str(agent_session.process_id),
         )
     console.print(table)
 
@@ -566,6 +624,7 @@ def task_start(
         task_repository,
         worktree_repository,
         _validation_repository,
+        _agent_session_repository,
         settings,
     ) = _full_repository_context()
     try:
@@ -674,6 +733,7 @@ def worktree_list(
         _task_repository,
         worktree_repository,
         _validation_repository,
+        _agent_session_repository,
         _settings,
     ) = _full_repository_context()
     try:
@@ -702,6 +762,7 @@ def worktree_remove(
         _task_repository,
         worktree_repository,
         _validation_repository,
+        _agent_session_repository,
         _settings,
     ) = _full_repository_context()
     try:
@@ -732,6 +793,7 @@ def check_task(
         task_repository,
         worktree_repository,
         validation_repository,
+        _agent_session_repository,
         settings,
     ) = _full_repository_context()
     try:
@@ -773,6 +835,7 @@ def evidence_task(
         _task_repository,
         _worktree_repository,
         validation_repository,
+        _agent_session_repository,
         _settings,
     ) = _full_repository_context()
     try:
@@ -783,3 +846,131 @@ def evidence_task(
         console.print(json.dumps([_validation_payload(run) for run in validation_runs], indent=2))
     else:
         _print_validation_table(validation_runs, title=f"Evidence for {task_id}")
+
+
+@agent_app.command("list")
+def agent_list(
+    json_output: bool = typer.Option(False, "--json", help="Emit JSON output."),
+) -> None:
+    """List configured agent providers and availability."""
+    providers = list_agent_providers()
+    if json_output:
+        console.print(json.dumps(providers, indent=2))
+        return
+    table = Table(title="Agent Providers")
+    table.add_column("Provider")
+    table.add_column("Name")
+    table.add_column("Available")
+    for provider in providers:
+        table.add_row(
+            str(provider["provider"]),
+            str(provider["name"]),
+            "yes" if provider["available"] else "no",
+        )
+    console.print(table)
+
+
+@agent_app.command("launch")
+def agent_launch(
+    task_id: str,
+    agent: Annotated[AgentProvider, typer.Option("--agent", help="Agent provider.")],
+    role: Annotated[AgentRole, typer.Option("--role", help="Agent role.")] = (
+        AgentRole.IMPLEMENTER
+    ),
+    json_output: bool = typer.Option(False, "--json", help="Emit JSON output."),
+) -> None:
+    """Launch a local agent session in the task worktree."""
+    (
+        session,
+        project_repository,
+        task_repository,
+        worktree_repository,
+        _validation_repository,
+        agent_session_repository,
+        settings,
+    ) = _full_repository_context()
+    try:
+        agent_session = launch_agent_session(
+            task_id=task_id,
+            provider=agent,
+            role=role,
+            project_repository=project_repository,
+            task_repository=task_repository,
+            worktree_repository=worktree_repository,
+            agent_session_repository=agent_session_repository,
+            metadata_root=settings.data_dir / "metadata",
+        )
+        session.commit()
+    except WorkbenchError as error:
+        session.rollback()
+        _exit_with_error(str(error))
+    finally:
+        session.close()
+    if json_output:
+        console.print(json.dumps(_agent_session_payload(agent_session), indent=2))
+    else:
+        _print_agent_session_table([agent_session], title="Launched Agent Session")
+
+
+@agent_app.command("status")
+def agent_status(
+    session_id: str,
+    json_output: bool = typer.Option(False, "--json", help="Emit JSON output."),
+) -> None:
+    """Refresh and show an agent session status."""
+    (
+        session,
+        _project_repository,
+        _task_repository,
+        _worktree_repository,
+        _validation_repository,
+        agent_session_repository,
+        _settings,
+    ) = _full_repository_context()
+    try:
+        agent_session = refresh_agent_session_status(
+            session_id=session_id,
+            agent_session_repository=agent_session_repository,
+        )
+        session.commit()
+    except WorkbenchError as error:
+        session.rollback()
+        _exit_with_error(str(error))
+    finally:
+        session.close()
+    if json_output:
+        console.print(json.dumps(_agent_session_payload(agent_session), indent=2))
+    else:
+        _print_agent_session_table([agent_session], title="Agent Session Status")
+
+
+@agent_app.command("stop")
+def agent_stop(
+    session_id: str,
+    json_output: bool = typer.Option(False, "--json", help="Emit JSON output."),
+) -> None:
+    """Stop a running agent session when possible."""
+    (
+        session,
+        _project_repository,
+        _task_repository,
+        _worktree_repository,
+        _validation_repository,
+        agent_session_repository,
+        _settings,
+    ) = _full_repository_context()
+    try:
+        agent_session = stop_agent_session(
+            session_id=session_id,
+            agent_session_repository=agent_session_repository,
+        )
+        session.commit()
+    except WorkbenchError as error:
+        session.rollback()
+        _exit_with_error(str(error))
+    finally:
+        session.close()
+    if json_output:
+        console.print(json.dumps(_agent_session_payload(agent_session), indent=2))
+    else:
+        _print_agent_session_table([agent_session], title="Stopped Agent Session")

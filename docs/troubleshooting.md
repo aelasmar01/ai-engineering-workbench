@@ -78,3 +78,16 @@ Validation checks fail if:
 - The command executable is missing from `PATH`.
 
 Failed checks still write raw evidence output and are recorded in SQLite.
+
+## `workbench agent launch` fails
+
+Agent launch fails if:
+
+- The task does not exist.
+- The task has no active worktree.
+- The selected provider executable is missing.
+- The repository harness cannot be loaded.
+
+Use `workbench agent list` to inspect provider availability. Use
+`WORKBENCH_CODEX_COMMAND` or `WORKBENCH_CLAUDE_COMMAND` to point at a specific
+local executable when the default command name is not correct.

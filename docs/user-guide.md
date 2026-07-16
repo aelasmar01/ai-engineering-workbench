@@ -5,7 +5,8 @@ endpoint, a dashboard shell, typed project/task domain models, SQLite schema
 initialization, repository classes for project/task persistence, harness
 validation, Git repository validation, project registry commands, task import,
 task listing, task detail, deterministic next-task selection, and Git worktree
-lifecycle support, and validation command execution with evidence capture.
+lifecycle support, validation command execution with evidence capture, and local
+agent adapter/session support.
 
 ## Install
 
@@ -41,11 +42,16 @@ uv run workbench task complete TASK_ID
 uv run workbench check TASK_ID
 uv run workbench check TASK_ID --only test
 uv run workbench evidence TASK_ID
+uv run workbench agent list
+uv run workbench agent launch TASK_ID --agent manual --role implementer
+uv run workbench agent status SESSION_ID
+uv run workbench agent stop SESSION_ID
 uv run workbench worktree list
 uv run workbench worktree remove TASK_ID --yes
 ```
 
-Agent launch, PR creation, and portfolio export are planned for later milestones.
+PR creation, review workflows, and portfolio export are planned for later
+milestones.
 
 ## Worktrees
 
@@ -70,4 +76,21 @@ metadata is persisted in SQLite:
 
 ```bash
 uv run workbench evidence TASK_ID
+```
+
+## Agents
+
+Agent sessions require an active task worktree. Manual sessions prepare and
+record a prompt packet without spawning a process:
+
+```bash
+uv run workbench agent launch TASK_ID --agent manual --role implementer
+```
+
+Codex and Claude Code sessions use local CLI executables only. Override the
+executable names when needed:
+
+```bash
+WORKBENCH_CODEX_COMMAND=/path/to/codex uv run workbench agent launch TASK_ID --agent codex
+WORKBENCH_CLAUDE_COMMAND=/path/to/claude uv run workbench agent launch TASK_ID --agent claude
 ```

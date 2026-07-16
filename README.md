@@ -4,14 +4,15 @@ AI Engineering Workbench is a local-first control plane for a single developer
 using Git worktrees, Codex, Claude Code, GitHub CLI, and deterministic validation
 to complete reviewable engineering tasks across multiple repositories.
 
-This repository currently contains the Milestone 5 foundation. It includes
+This repository currently contains the Milestone 6 foundation. It includes
 typed domain schemas, SQLite schema initialization, project/task persistence,
 task batch validation, deterministic task status-transition rules, harness
 parsing, Git repository validation, project registry CLI commands, task import,
 task listing, task detail, deterministic next-task selection, and Git worktree
-lifecycle support, and validation command execution with evidence capture.
+lifecycle support, validation command execution with evidence capture, and local
+agent adapter/session support.
 
-It does not yet implement agent launches, pull-request creation, or portfolio
+It does not yet implement pull-request creation, review workflows, or portfolio
 export.
 
 ## Requirements
@@ -51,6 +52,10 @@ uv run workbench task start TASK_ID
 uv run workbench check TASK_ID
 uv run workbench check TASK_ID --only test
 uv run workbench evidence TASK_ID
+uv run workbench agent list
+uv run workbench agent launch TASK_ID --agent manual --role implementer
+uv run workbench agent status SESSION_ID
+uv run workbench agent stop SESSION_ID
 uv run workbench worktree list
 uv run workbench worktree remove TASK_ID --yes
 make api
@@ -82,6 +87,9 @@ The API and dashboard bind to localhost by default.
 - Validation runs execute configured `harness.yaml` command groups in the task
   worktree, capture raw stdout/stderr, preserve exit codes, apply timeouts, and
   persist evidence metadata in SQLite.
+- Agent sessions use provider-independent adapters for manual, Codex CLI, and
+  Claude Code. Codex and Claude are invoked through local command-line tools
+  only, not model APIs.
 
 ## Repository Layout
 

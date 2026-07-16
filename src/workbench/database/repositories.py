@@ -8,12 +8,14 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from workbench.database.models import (
+    AgentSessionRecord,
     ProjectRecord,
     TaskRecord,
     ValidationRunRecord,
     WorktreeRecord,
 )
-from workbench.domain.enums import ProjectStatus, TaskStatus, WorktreeStatus
+from workbench.domain.agents import AgentSession, AgentSessionCreate
+from workbench.domain.enums import AgentSessionStatus, ProjectStatus, TaskStatus, WorktreeStatus
 from workbench.domain.errors import DuplicateEntityError, ValidationError
 from workbench.domain.projects import Project, ProjectCreate
 from workbench.domain.status import ensure_task_transition_allowed
@@ -288,6 +290,69 @@ class ValidationRunRepository:
         return [_validation_run_from_record(record) for record in records]
 
 
+class AgentSessionRepository:
+    def __init__(self, session: Session) -> None:
+        self._session = session
+
+    def add(self, agent_session: AgentSessionCreate) -> AgentSession:
+        record = AgentSessionRecord(
+            id=agent_session.id,
+            task_id=agent_session.task_id,
+            worktree_id=agent_session.worktree_id,
+            agent_provider=agent_session.agent_provider,
+            agent_role=agent_session.agent_role,
+            process_id=agent_session.process_id,
+            command_used=agent_session.command_used,
+            prompt_packet_location=str(agent_session.prompt_packet_location),
+            log_location=str(agent_session.log_location),
+            start_time=agent_session.start_time,
+            end_time=agent_session.end_time,
+            last_activity_time=agent_session.last_activity_time,
+            exit_code=agent_session.exit_code,
+            status=agent_session.status,
+        )
+        self._session.add(record)
+        try:
+            self._session.flush()
+        except IntegrityError as error:
+            msg = f"agent session already exists: {agent_session.id}"
+            raise DuplicateEntityError(msg) from error
+        return _agent_session_from_record(record)
+
+    def get(self, session_id: str) -> AgentSession | None:
+        record = self._session.get(AgentSessionRecord, session_id)
+        if record is None:
+            return None
+        return _agent_session_from_record(record)
+
+    def update_status(
+        self,
+        session_id: str,
+        status: AgentSessionStatus,
+        *,
+        exit_code: int | None = None,
+        end_time: datetime | None = None,
+    ) -> AgentSession:
+        record = self._session.get(AgentSessionRecord, session_id)
+        if record is None:
+            msg = f"agent session does not exist: {session_id}"
+            raise ValidationError(msg)
+        record.status = status
+        record.exit_code = exit_code
+        record.end_time = end_time
+        record.last_activity_time = utc_now()
+        self._session.flush()
+        return _agent_session_from_record(record)
+
+    def list_for_task(self, task_id: str) -> list[AgentSession]:
+        records = self._session.scalars(
+            select(AgentSessionRecord)
+            .where(AgentSessionRecord.task_id == task_id)
+            .order_by(AgentSessionRecord.start_time.desc())
+        ).all()
+        return [_agent_session_from_record(record) for record in records]
+
+
 def _project_from_record(record: ProjectRecord) -> Project:
     return Project(
         id=record.id,
@@ -356,4 +421,23 @@ def _validation_run_from_record(record: ValidationRunRecord) -> ValidationRun:
         status=record.status,
         output_path=Path(record.output_path),
         parsed_summary=record.parsed_summary,
+    )
+
+
+def _agent_session_from_record(record: AgentSessionRecord) -> AgentSession:
+    return AgentSession(
+        id=record.id,
+        task_id=record.task_id,
+        worktree_id=record.worktree_id,
+        agent_provider=record.agent_provider,
+        agent_role=record.agent_role,
+        process_id=record.process_id,
+        command_used=record.command_used,
+        prompt_packet_location=Path(record.prompt_packet_location),
+        log_location=Path(record.log_location),
+        start_time=record.start_time,
+        end_time=record.end_time,
+        last_activity_time=record.last_activity_time,
+        exit_code=record.exit_code,
+        status=record.status,
     )
