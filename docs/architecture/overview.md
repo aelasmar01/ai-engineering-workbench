@@ -24,15 +24,16 @@ The system must inspect exit codes and stored evidence before marking work ready
 ## Current Structure
 
 The current implementation establishes module boundaries, the Milestone 1
-domain/persistence slice, the Milestone 2 project registry slice, and the
-Milestone 3 task backlog slice, the Milestone 4 worktree lifecycle slice, and
-the Milestone 5 validation engine slice, and the Milestone 6 agent adapter
-slice:
+domain/persistence slice, the Milestone 2 project registry slice, the Milestone
+3 task backlog slice, the Milestone 4 worktree lifecycle slice, the Milestone 5
+validation engine slice, the Milestone 6 agent adapter slice, and the Milestone
+7 acceptance/review slice:
 
 - `src/workbench/domain` for provider-independent rules.
 - `src/workbench/git` and `src/workbench/worktrees` for Git integration.
 - `src/workbench/agents` for provider adapters.
 - `src/workbench/validation` and `src/workbench/evidence` for checks and proof.
+- `src/workbench/review` for deterministic diff summaries and risk findings.
 - `src/workbench/cli` and `src/workbench/api` for local interfaces.
 - `apps/dashboard` for the local operational UI.
 
@@ -58,4 +59,9 @@ Agent adapters live in `src/workbench/agents/adapters.py`. Prompt packet
 generation lives in `src/workbench/agents/packets.py`. Session orchestration
 lives in `src/workbench/agents/service.py`.
 
-Review workflow, PR workflow, and portfolio export are not implemented yet.
+Acceptance matrix and review finding domain types live in
+`src/workbench/domain/review.py`. Deterministic diff risk classification lives in
+`src/workbench/review/diff.py`, and acceptance/review orchestration lives in
+`src/workbench/review/service.py`.
+
+PR workflow and portfolio export are not implemented yet.

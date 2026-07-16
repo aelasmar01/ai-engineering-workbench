@@ -19,8 +19,10 @@ from workbench.agents.service import (
 )
 from workbench.config.settings import WorkbenchSettings, load_settings
 from workbench.database.repositories import (
+    AcceptanceCriterionRepository,
     AgentSessionRepository,
     ProjectRepository,
+    ReviewFindingRepository,
     TaskRepository,
     ValidationRunRepository,
     WorktreeRepository,
@@ -34,10 +36,17 @@ from workbench.domain.agents import AgentSession
 from workbench.domain.enums import AgentProvider, AgentRole
 from workbench.domain.errors import WorkbenchError
 from workbench.domain.projects import Project
+from workbench.domain.review import AcceptanceCriterionResult, ReviewFinding
 from workbench.domain.tasks import Task
 from workbench.domain.validation import ValidationRun
 from workbench.domain.worktrees import Worktree
 from workbench.projects.registry import register_project, validate_project_path
+from workbench.review.diff import DiffRiskSummary, summarize_task_diff
+from workbench.review.service import (
+    acceptance_matrix,
+    create_deterministic_review_findings,
+    verify_acceptance_criterion,
+)
 from workbench.tasks.schema import load_task_documents, validate_task_batch
 from workbench.tasks.selection import select_next_task
 from workbench.validation.runner import ValidationRequest, run_validation
@@ -48,10 +57,14 @@ project_app = typer.Typer(help="Register and inspect local Git repositories.")
 task_app = typer.Typer(help="Import and manage backlog tasks.")
 worktree_app = typer.Typer(help="Inspect and remove task worktrees.")
 agent_app = typer.Typer(help="Launch and inspect local agent sessions.")
+finding_app = typer.Typer(help="Inspect and resolve review findings.")
+acceptance_app = typer.Typer(help="Inspect and verify acceptance criteria.")
 app.add_typer(project_app, name="project")
 app.add_typer(task_app, name="task")
 app.add_typer(worktree_app, name="worktree")
 app.add_typer(agent_app, name="agent")
+app.add_typer(finding_app, name="finding")
+app.add_typer(acceptance_app, name="acceptance")
 console = Console()
 error_console = Console(stderr=True)
 
@@ -129,6 +142,8 @@ def _full_repository_context() -> tuple[
     WorktreeRepository,
     ValidationRunRepository,
     AgentSessionRepository,
+    AcceptanceCriterionRepository,
+    ReviewFindingRepository,
     WorkbenchSettings,
 ]:
     settings = load_settings()
@@ -143,6 +158,8 @@ def _full_repository_context() -> tuple[
         WorktreeRepository(session),
         ValidationRunRepository(session),
         AgentSessionRepository(session),
+        AcceptanceCriterionRepository(session),
+        ReviewFindingRepository(session),
         settings,
     )
 
@@ -241,6 +258,62 @@ def _agent_session_payload(agent_session: AgentSession) -> dict[str, Any]:
     }
 
 
+def _acceptance_payload(result: AcceptanceCriterionResult) -> dict[str, Any]:
+    return {
+        "id": result.id,
+        "task_id": result.task_id,
+        "criterion_text": result.criterion_text,
+        "status": result.status.value,
+        "evidence_type": result.evidence_type,
+        "evidence_reference": result.evidence_reference,
+        "verification_method": result.verification_method,
+        "verified_by": result.verified_by,
+        "verification_timestamp": (
+            result.verification_timestamp.isoformat()
+            if result.verification_timestamp
+            else None
+        ),
+    }
+
+
+def _review_finding_payload(finding: ReviewFinding) -> dict[str, Any]:
+    return {
+        "id": finding.id,
+        "task_id": finding.task_id,
+        "severity": finding.severity,
+        "category": finding.category,
+        "file": finding.file,
+        "line": finding.line,
+        "description": finding.description,
+        "recommendation": finding.recommendation,
+        "status": finding.status.value,
+        "resolution_explanation": finding.resolution_explanation,
+        "reviewer_type": finding.reviewer_type,
+    }
+
+
+def _diff_summary_payload(summary: DiffRiskSummary) -> dict[str, Any]:
+    return {
+        "task_id": summary.task_id,
+        "branch": summary.branch,
+        "base_branch": summary.base_branch,
+        "total_added": summary.total_added,
+        "total_removed": summary.total_removed,
+        "high_risk_paths": summary.high_risk_paths,
+        "untracked_files": summary.untracked_files,
+        "files": [
+            {
+                "path": file.path,
+                "lines_added": file.lines_added,
+                "lines_removed": file.lines_removed,
+                "status": file.status,
+                "categories": file.categories,
+            }
+            for file in summary.files
+        ],
+    }
+
+
 def _print_project_table(projects: list[Project]) -> None:
     table = Table(title="Registered Projects")
     table.add_column("ID")
@@ -335,6 +408,62 @@ def _print_agent_session_table(
             "" if agent_session.process_id is None else str(agent_session.process_id),
         )
     console.print(table)
+
+
+def _print_acceptance_table(
+    results: list[AcceptanceCriterionResult], *, title: str = "Acceptance Matrix"
+) -> None:
+    table = Table(title=title)
+    table.add_column("Criterion")
+    table.add_column("Status")
+    table.add_column("Evidence")
+    for result in results:
+        table.add_row(
+            result.criterion_text,
+            result.status.value,
+            result.evidence_reference,
+        )
+    console.print(table)
+
+
+def _print_finding_table(findings: list[ReviewFinding], *, title: str = "Review Findings") -> None:
+    table = Table(title=title)
+    table.add_column("ID")
+    table.add_column("Severity")
+    table.add_column("Category")
+    table.add_column("Status")
+    table.add_column("File")
+    for finding in findings:
+        table.add_row(
+            finding.id,
+            finding.severity,
+            finding.category,
+            finding.status.value,
+            finding.file,
+        )
+    console.print(table)
+
+
+def _print_diff_summary(summary: DiffRiskSummary) -> None:
+    table = Table(title=f"Diff Risk Summary for {summary.task_id}")
+    table.add_column("File")
+    table.add_column("Added")
+    table.add_column("Removed")
+    table.add_column("Status")
+    table.add_column("Categories")
+    for file in summary.files:
+        table.add_row(
+            file.path,
+            str(file.lines_added),
+            str(file.lines_removed),
+            file.status,
+            ", ".join(file.categories),
+        )
+    console.print(table)
+    if summary.untracked_files:
+        console.print("Untracked files:")
+        for path in summary.untracked_files:
+            console.print(f"- {path}")
 
 
 def _exit_with_error(message: str) -> NoReturn:
@@ -625,6 +754,8 @@ def task_start(
         worktree_repository,
         _validation_repository,
         _agent_session_repository,
+        _acceptance_repository,
+        _finding_repository,
         settings,
     ) = _full_repository_context()
     try:
@@ -734,6 +865,8 @@ def worktree_list(
         worktree_repository,
         _validation_repository,
         _agent_session_repository,
+        _acceptance_repository,
+        _finding_repository,
         _settings,
     ) = _full_repository_context()
     try:
@@ -763,6 +896,8 @@ def worktree_remove(
         worktree_repository,
         _validation_repository,
         _agent_session_repository,
+        _acceptance_repository,
+        _finding_repository,
         _settings,
     ) = _full_repository_context()
     try:
@@ -794,6 +929,8 @@ def check_task(
         worktree_repository,
         validation_repository,
         _agent_session_repository,
+        _acceptance_repository,
+        _finding_repository,
         settings,
     ) = _full_repository_context()
     try:
@@ -836,6 +973,8 @@ def evidence_task(
         _worktree_repository,
         validation_repository,
         _agent_session_repository,
+        _acceptance_repository,
+        _finding_repository,
         _settings,
     ) = _full_repository_context()
     try:
@@ -887,6 +1026,8 @@ def agent_launch(
         worktree_repository,
         _validation_repository,
         agent_session_repository,
+        _acceptance_repository,
+        _finding_repository,
         settings,
     ) = _full_repository_context()
     try:
@@ -925,6 +1066,8 @@ def agent_status(
         _worktree_repository,
         _validation_repository,
         agent_session_repository,
+        _acceptance_repository,
+        _finding_repository,
         _settings,
     ) = _full_repository_context()
     try:
@@ -957,6 +1100,8 @@ def agent_stop(
         _worktree_repository,
         _validation_repository,
         agent_session_repository,
+        _acceptance_repository,
+        _finding_repository,
         _settings,
     ) = _full_repository_context()
     try:
@@ -974,3 +1119,219 @@ def agent_stop(
         console.print(json.dumps(_agent_session_payload(agent_session), indent=2))
     else:
         _print_agent_session_table([agent_session], title="Stopped Agent Session")
+
+
+@app.command("diff")
+def diff_task(
+    task_id: str,
+    json_output: bool = typer.Option(False, "--json", help="Emit JSON output."),
+) -> None:
+    """Summarize changed files and deterministic risk categories."""
+    (
+        session,
+        project_repository,
+        task_repository,
+        worktree_repository,
+        _validation_repository,
+        _agent_session_repository,
+        _acceptance_repository,
+        _finding_repository,
+        _settings,
+    ) = _full_repository_context()
+    try:
+        summary = summarize_task_diff(
+            task_id=task_id,
+            project_repository=project_repository,
+            task_repository=task_repository,
+            worktree_repository=worktree_repository,
+        )
+    except WorkbenchError as error:
+        _exit_with_error(str(error))
+    finally:
+        session.close()
+    if json_output:
+        console.print(json.dumps(_diff_summary_payload(summary), indent=2))
+    else:
+        _print_diff_summary(summary)
+
+
+@app.command("review")
+def review_task(
+    task_id: str,
+    agent: str = typer.Option("deterministic", "--agent", help="Reviewer type label."),
+    json_output: bool = typer.Option(False, "--json", help="Emit JSON output."),
+) -> None:
+    """Create deterministic review findings from diff risk categories."""
+    (
+        session,
+        project_repository,
+        task_repository,
+        worktree_repository,
+        _validation_repository,
+        _agent_session_repository,
+        _acceptance_repository,
+        finding_repository,
+        _settings,
+    ) = _full_repository_context()
+    try:
+        findings = create_deterministic_review_findings(
+            task_id=task_id,
+            project_repository=project_repository,
+            task_repository=task_repository,
+            worktree_repository=worktree_repository,
+            finding_repository=finding_repository,
+            reviewer_type=agent,
+        )
+        session.commit()
+    except WorkbenchError as error:
+        session.rollback()
+        _exit_with_error(str(error))
+    finally:
+        session.close()
+    if json_output:
+        console.print(
+            json.dumps([_review_finding_payload(finding) for finding in findings], indent=2)
+        )
+    else:
+        _print_finding_table(findings, title=f"Review Findings for {task_id}")
+
+
+@finding_app.command("list")
+def finding_list(
+    task_id: str,
+    json_output: bool = typer.Option(False, "--json", help="Emit JSON output."),
+) -> None:
+    """List review findings for a task."""
+    (
+        session,
+        _project_repository,
+        _task_repository,
+        _worktree_repository,
+        _validation_repository,
+        _agent_session_repository,
+        _acceptance_repository,
+        finding_repository,
+        _settings,
+    ) = _full_repository_context()
+    try:
+        findings = finding_repository.list_for_task(task_id)
+    finally:
+        session.close()
+    if json_output:
+        console.print(
+            json.dumps([_review_finding_payload(finding) for finding in findings], indent=2)
+        )
+    else:
+        _print_finding_table(findings)
+
+
+@finding_app.command("resolve")
+def finding_resolve(
+    finding_id: str,
+    explanation: str = typer.Option(..., "--explanation", "-e", help="Resolution explanation."),
+    json_output: bool = typer.Option(False, "--json", help="Emit JSON output."),
+) -> None:
+    """Resolve a review finding with an explanation."""
+    (
+        session,
+        _project_repository,
+        _task_repository,
+        _worktree_repository,
+        _validation_repository,
+        _agent_session_repository,
+        _acceptance_repository,
+        finding_repository,
+        _settings,
+    ) = _full_repository_context()
+    try:
+        finding = finding_repository.resolve(finding_id, explanation)
+        session.commit()
+    except WorkbenchError as error:
+        session.rollback()
+        _exit_with_error(str(error))
+    finally:
+        session.close()
+    if json_output:
+        console.print(json.dumps(_review_finding_payload(finding), indent=2))
+    else:
+        _print_finding_table([finding], title="Resolved Finding")
+
+
+@acceptance_app.command("matrix")
+def acceptance_matrix_command(
+    task_id: str,
+    json_output: bool = typer.Option(False, "--json", help="Emit JSON output."),
+) -> None:
+    """Show the acceptance matrix for a task."""
+    (
+        session,
+        _project_repository,
+        task_repository,
+        _worktree_repository,
+        _validation_repository,
+        _agent_session_repository,
+        acceptance_repository,
+        _finding_repository,
+        _settings,
+    ) = _full_repository_context()
+    try:
+        results = acceptance_matrix(
+            task_id=task_id,
+            task_repository=task_repository,
+            acceptance_repository=acceptance_repository,
+        )
+    except WorkbenchError as error:
+        _exit_with_error(str(error))
+    finally:
+        session.close()
+    if json_output:
+        console.print(json.dumps([_acceptance_payload(result) for result in results], indent=2))
+    else:
+        _print_acceptance_table(results)
+
+
+@acceptance_app.command("verify")
+def acceptance_verify(
+    task_id: str,
+    criterion: str = typer.Option(..., "--criterion", help="Criterion text."),
+    evidence_type: str = typer.Option(..., "--evidence-type", help="Evidence type."),
+    evidence_reference: str = typer.Option(..., "--evidence-reference", help="Evidence reference."),
+    verification_method: str = typer.Option(
+        "manual", "--method", help="Verification method."
+    ),
+    verified_by: str = typer.Option("human", "--verified-by", help="Verifier."),
+    json_output: bool = typer.Option(False, "--json", help="Emit JSON output."),
+) -> None:
+    """Record manual verification evidence for one acceptance criterion."""
+    (
+        session,
+        _project_repository,
+        task_repository,
+        _worktree_repository,
+        _validation_repository,
+        _agent_session_repository,
+        acceptance_repository,
+        _finding_repository,
+        _settings,
+    ) = _full_repository_context()
+    try:
+        result = verify_acceptance_criterion(
+            task_id=task_id,
+            criterion_text=criterion,
+            evidence_type=evidence_type,
+            evidence_reference=evidence_reference,
+            verification_method=verification_method,
+            verified_by=verified_by,
+            acceptance_repository=acceptance_repository,
+            task_repository=task_repository,
+        )
+        session.commit()
+    except WorkbenchError as error:
+        session.rollback()
+        _exit_with_error(str(error))
+    finally:
+        session.close()
+    if json_output:
+        console.print(json.dumps(_acceptance_payload(result), indent=2))
+    else:
+        _print_acceptance_table([result], title="Verified Acceptance Criterion")

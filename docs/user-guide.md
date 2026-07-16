@@ -6,7 +6,8 @@ initialization, repository classes for project/task persistence, harness
 validation, Git repository validation, project registry commands, task import,
 task listing, task detail, deterministic next-task selection, and Git worktree
 lifecycle support, validation command execution with evidence capture, and local
-agent adapter/session support.
+agent adapter/session support, acceptance matrix tracking, deterministic diff
+risk classification, and review finding persistence.
 
 ## Install
 
@@ -46,12 +47,17 @@ uv run workbench agent list
 uv run workbench agent launch TASK_ID --agent manual --role implementer
 uv run workbench agent status SESSION_ID
 uv run workbench agent stop SESSION_ID
+uv run workbench diff TASK_ID
+uv run workbench review TASK_ID
+uv run workbench finding list TASK_ID
+uv run workbench finding resolve FINDING_ID --explanation "Reviewed and accepted"
+uv run workbench acceptance matrix TASK_ID
+uv run workbench acceptance verify TASK_ID --criterion "Criterion" --evidence-type manual --evidence-reference "notes"
 uv run workbench worktree list
 uv run workbench worktree remove TASK_ID --yes
 ```
 
-PR creation, review workflows, and portfolio export are planned for later
-milestones.
+PR creation and portfolio export are planned for later milestones.
 
 ## Worktrees
 
@@ -93,4 +99,34 @@ executable names when needed:
 ```bash
 WORKBENCH_CODEX_COMMAND=/path/to/codex uv run workbench agent launch TASK_ID --agent codex
 WORKBENCH_CLAUDE_COMMAND=/path/to/claude uv run workbench agent launch TASK_ID --agent claude
+```
+
+## Review and acceptance
+
+Use `workbench diff TASK_ID` after modifying the task worktree to inspect changed
+files, line counts, untracked files, binary files, and deterministic risk
+categories:
+
+```bash
+uv run workbench diff TASK_ID
+```
+
+Use `workbench review TASK_ID` to persist deterministic findings for high-risk
+diff categories or untracked files:
+
+```bash
+uv run workbench review TASK_ID
+uv run workbench finding list TASK_ID
+uv run workbench finding resolve FINDING_ID --explanation "Reviewed the dependency change"
+```
+
+Acceptance criteria are shown as a matrix and start as unverified. Record manual
+verification only after you have concrete evidence:
+
+```bash
+uv run workbench acceptance matrix TASK_ID
+uv run workbench acceptance verify TASK_ID \
+  --criterion "Documentation updated" \
+  --evidence-type git-diff \
+  --evidence-reference "docs/user-guide.md"
 ```
