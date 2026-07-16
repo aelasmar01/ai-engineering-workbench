@@ -23,3 +23,9 @@ npm test
 
 Docker, Codex CLI, and Claude Code are optional during Milestone 0. Later
 milestones will require the selected tool only when a workflow uses it.
+
+## SQLite database creation
+
+Milestone 1 initializes SQLite tables through application code. If a database
+file cannot be created, check that the parent directory exists or is writable by
+the current user.

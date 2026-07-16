@@ -21,9 +21,10 @@ The evidence plane will own validation output, diff summaries, acceptance
 criterion results, review findings, pull-request records, and portfolio metrics.
 The system must inspect exit codes and stored evidence before marking work ready.
 
-## Milestone 0 Structure
+## Current Structure
 
-Milestone 0 establishes module boundaries only:
+The current implementation establishes module boundaries and the Milestone 1
+domain/persistence slice:
 
 - `src/workbench/domain` for provider-independent rules.
 - `src/workbench/git` and `src/workbench/worktrees` for Git integration.
@@ -32,5 +33,10 @@ Milestone 0 establishes module boundaries only:
 - `src/workbench/cli` and `src/workbench/api` for local interfaces.
 - `apps/dashboard` for the local operational UI.
 
-No persistence, task workflow, agent execution, validation engine, or PR workflow
-is implemented in Milestone 0.
+SQLite mappings live in `src/workbench/database/models.py`. Project and task
+repositories live in `src/workbench/database/repositories.py`. Task schema
+validation lives in `src/workbench/tasks/schema.py`.
+
+Task workflow commands, Git worktree lifecycle, agent execution, validation
+engine, review workflow, PR workflow, and portfolio export are not implemented
+yet.

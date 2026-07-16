@@ -1,7 +1,8 @@
 # User Guide
 
-Milestone 0 provides setup, checks, a basic CLI, an API health endpoint, and a
-dashboard shell.
+The current implementation provides setup, checks, a basic CLI, an API health
+endpoint, a dashboard shell, typed project/task domain models, SQLite schema
+initialization, and repository classes for project/task persistence.
 
 ## Install
 
@@ -23,5 +24,6 @@ uv run workbench doctor
 uv run workbench dashboard
 ```
 
-Project registration, task import, worktree creation, agent launch, validation
-execution, PR creation, and portfolio export are planned for later milestones.
+Project registration commands, task import commands, worktree creation, agent
+launch, validation execution, PR creation, and portfolio export are planned for
+later milestones.
