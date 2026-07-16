@@ -22,6 +22,7 @@ from workbench.database.repositories import (
     AcceptanceCriterionRepository,
     AgentSessionRepository,
     ProjectRepository,
+    PullRequestRepository,
     ReviewFindingRepository,
     TaskRepository,
     ValidationRunRepository,
@@ -36,10 +37,18 @@ from workbench.domain.agents import AgentSession
 from workbench.domain.enums import AgentProvider, AgentRole
 from workbench.domain.errors import WorkbenchError
 from workbench.domain.projects import Project
+from workbench.domain.pull_requests import PullRequest
 from workbench.domain.review import AcceptanceCriterionResult, ReviewFinding
 from workbench.domain.tasks import Task
 from workbench.domain.validation import ValidationRun
 from workbench.domain.worktrees import Worktree
+from workbench.github.pull_requests import (
+    CreatedPullRequest,
+    PreparedPullRequest,
+    ReadinessCheck,
+    create_pull_request,
+    prepare_pull_request,
+)
 from workbench.projects.registry import register_project, validate_project_path
 from workbench.review.diff import DiffRiskSummary, summarize_task_diff
 from workbench.review.service import (
@@ -59,12 +68,14 @@ worktree_app = typer.Typer(help="Inspect and remove task worktrees.")
 agent_app = typer.Typer(help="Launch and inspect local agent sessions.")
 finding_app = typer.Typer(help="Inspect and resolve review findings.")
 acceptance_app = typer.Typer(help="Inspect and verify acceptance criteria.")
+pr_app = typer.Typer(help="Prepare and create GitHub pull requests.")
 app.add_typer(project_app, name="project")
 app.add_typer(task_app, name="task")
 app.add_typer(worktree_app, name="worktree")
 app.add_typer(agent_app, name="agent")
 app.add_typer(finding_app, name="finding")
 app.add_typer(acceptance_app, name="acceptance")
+app.add_typer(pr_app, name="pr")
 console = Console()
 error_console = Console(stderr=True)
 
@@ -160,6 +171,35 @@ def _full_repository_context() -> tuple[
         AgentSessionRepository(session),
         AcceptanceCriterionRepository(session),
         ReviewFindingRepository(session),
+        settings,
+    )
+
+
+def _pull_request_context() -> tuple[
+    Any,
+    ProjectRepository,
+    TaskRepository,
+    WorktreeRepository,
+    ValidationRunRepository,
+    AcceptanceCriterionRepository,
+    ReviewFindingRepository,
+    PullRequestRepository,
+    WorkbenchSettings,
+]:
+    settings = load_settings()
+    engine = create_sqlite_engine(settings.database_path)
+    initialize_database(engine)
+    session_factory = create_session_factory(engine)
+    session = session_factory()
+    return (
+        session,
+        ProjectRepository(session),
+        TaskRepository(session),
+        WorktreeRepository(session),
+        ValidationRunRepository(session),
+        AcceptanceCriterionRepository(session),
+        ReviewFindingRepository(session),
+        PullRequestRepository(session),
         settings,
     )
 
@@ -314,6 +354,57 @@ def _diff_summary_payload(summary: DiffRiskSummary) -> dict[str, Any]:
     }
 
 
+def _readiness_payload(readiness: list[ReadinessCheck]) -> list[dict[str, Any]]:
+    return [
+        {
+            "name": check.name,
+            "status": check.status,
+            "detail": check.detail,
+            "blocking": check.blocking,
+        }
+        for check in readiness
+    ]
+
+
+def _pull_request_payload(pull_request: PullRequest) -> dict[str, Any]:
+    return {
+        "id": pull_request.id,
+        "task_id": pull_request.task_id,
+        "repository": pull_request.repository,
+        "branch": pull_request.branch,
+        "pull_request_number": pull_request.pull_request_number,
+        "pull_request_url": pull_request.pull_request_url,
+        "status": pull_request.status.value,
+        "created_time": pull_request.created_time.isoformat(),
+        "merged_time": pull_request.merged_time.isoformat()
+        if pull_request.merged_time
+        else None,
+        "merge_commit": pull_request.merge_commit,
+    }
+
+
+def _prepared_pr_payload(prepared: PreparedPullRequest) -> dict[str, Any]:
+    return {
+        "task_id": prepared.task.id,
+        "repository": prepared.pull_request.repository,
+        "branch": prepared.worktree.branch_name,
+        "base_branch": prepared.worktree.base_branch,
+        "body_path": str(prepared.body_path),
+        "readiness": _readiness_payload(prepared.readiness),
+        "pull_request": _pull_request_payload(prepared.pull_request),
+    }
+
+
+def _created_pr_payload(created: CreatedPullRequest) -> dict[str, Any]:
+    return {
+        "github_account": created.github_account,
+        "remote_url": created.remote_url,
+        "pushed_branch": created.pushed_branch,
+        "body_path": str(created.body_path),
+        "pull_request": _pull_request_payload(created.pull_request),
+    }
+
+
 def _print_project_table(projects: list[Project]) -> None:
     table = Table(title="Registered Projects")
     table.add_column("ID")
@@ -464,6 +555,36 @@ def _print_diff_summary(summary: DiffRiskSummary) -> None:
         console.print("Untracked files:")
         for path in summary.untracked_files:
             console.print(f"- {path}")
+
+
+def _print_readiness(readiness: list[ReadinessCheck]) -> None:
+    table = Table(title="PR Readiness")
+    table.add_column("Check")
+    table.add_column("Status")
+    table.add_column("Blocking")
+    table.add_column("Detail")
+    for check in readiness:
+        table.add_row(check.name, check.status, "yes" if check.blocking else "no", check.detail)
+    console.print(table)
+
+
+def _print_pull_request(pull_request: PullRequest, *, title: str = "Pull Request") -> None:
+    table = Table(title=title)
+    table.add_column("Task")
+    table.add_column("Repository")
+    table.add_column("Branch")
+    table.add_column("Status")
+    table.add_column("Number")
+    table.add_column("URL")
+    table.add_row(
+        pull_request.task_id,
+        pull_request.repository,
+        pull_request.branch,
+        pull_request.status.value,
+        str(pull_request.pull_request_number),
+        pull_request.pull_request_url,
+    )
+    console.print(table)
 
 
 def _exit_with_error(message: str) -> NoReturn:
@@ -1335,3 +1456,128 @@ def acceptance_verify(
         console.print(json.dumps(_acceptance_payload(result), indent=2))
     else:
         _print_acceptance_table([result], title="Verified Acceptance Criterion")
+
+
+@pr_app.command("prepare")
+def pr_prepare(
+    task_id: str,
+    json_output: bool = typer.Option(False, "--json", help="Emit JSON output."),
+) -> None:
+    """Generate and save a structured pull-request body."""
+    (
+        session,
+        project_repository,
+        task_repository,
+        worktree_repository,
+        validation_repository,
+        acceptance_repository,
+        finding_repository,
+        pull_request_repository,
+        settings,
+    ) = _pull_request_context()
+    try:
+        prepared = prepare_pull_request(
+            task_id=task_id,
+            project_repository=project_repository,
+            task_repository=task_repository,
+            worktree_repository=worktree_repository,
+            validation_repository=validation_repository,
+            acceptance_repository=acceptance_repository,
+            finding_repository=finding_repository,
+            pull_request_repository=pull_request_repository,
+            metadata_root=settings.data_dir / "metadata",
+        )
+        session.commit()
+    except WorkbenchError as error:
+        session.rollback()
+        _exit_with_error(str(error))
+    finally:
+        session.close()
+    if json_output:
+        payload = _prepared_pr_payload(prepared) | {"body": prepared.body}
+        console.print(json.dumps(payload, indent=2))
+    else:
+        console.print(f"Prepared PR body: {prepared.body_path}")
+        _print_readiness(prepared.readiness)
+        console.print(prepared.body)
+
+
+@pr_app.command("create")
+def pr_create(
+    task_id: str,
+    yes: bool = typer.Option(False, "--yes", "-y", help="Confirm push and PR creation."),
+    allow_unready: bool = typer.Option(
+        False,
+        "--allow-unready",
+        help="Allow warnings/blockers except failed required checks.",
+    ),
+    json_output: bool = typer.Option(False, "--json", help="Emit JSON output."),
+) -> None:
+    """Push the task branch and create a GitHub pull request through gh."""
+    (
+        session,
+        project_repository,
+        task_repository,
+        worktree_repository,
+        validation_repository,
+        acceptance_repository,
+        finding_repository,
+        pull_request_repository,
+        settings,
+    ) = _pull_request_context()
+    try:
+        created = create_pull_request(
+            task_id=task_id,
+            project_repository=project_repository,
+            task_repository=task_repository,
+            worktree_repository=worktree_repository,
+            validation_repository=validation_repository,
+            acceptance_repository=acceptance_repository,
+            finding_repository=finding_repository,
+            pull_request_repository=pull_request_repository,
+            metadata_root=settings.data_dir / "metadata",
+            approved=yes,
+            allow_unready=allow_unready,
+        )
+        session.commit()
+    except WorkbenchError as error:
+        session.rollback()
+        _exit_with_error(str(error))
+    finally:
+        session.close()
+    if json_output:
+        console.print(json.dumps(_created_pr_payload(created), indent=2))
+    else:
+        console.print(f"GitHub account: {created.github_account}")
+        console.print(f"Remote: {created.remote_url}")
+        console.print(f"Pushed branch: {created.pushed_branch}")
+        _print_pull_request(created.pull_request, title="Created Pull Request")
+
+
+@pr_app.command("status")
+def pr_status(
+    task_id: str,
+    json_output: bool = typer.Option(False, "--json", help="Emit JSON output."),
+) -> None:
+    """Show the persisted pull-request record for a task."""
+    (
+        session,
+        _project_repository,
+        _task_repository,
+        _worktree_repository,
+        _validation_repository,
+        _acceptance_repository,
+        _finding_repository,
+        pull_request_repository,
+        _settings,
+    ) = _pull_request_context()
+    try:
+        pull_request = pull_request_repository.get_for_task(task_id)
+    finally:
+        session.close()
+    if pull_request is None:
+        _exit_with_error(f"pull request record does not exist for task: {task_id}")
+    if json_output:
+        console.print(json.dumps(_pull_request_payload(pull_request), indent=2))
+    else:
+        _print_pull_request(pull_request, title=f"Pull Request for {task_id}")

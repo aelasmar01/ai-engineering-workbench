@@ -27,13 +27,14 @@ The current implementation establishes module boundaries, the Milestone 1
 domain/persistence slice, the Milestone 2 project registry slice, the Milestone
 3 task backlog slice, the Milestone 4 worktree lifecycle slice, the Milestone 5
 validation engine slice, the Milestone 6 agent adapter slice, and the Milestone
-7 acceptance/review slice:
+7 acceptance/review slice, and the Milestone 8 pull-request workflow slice:
 
 - `src/workbench/domain` for provider-independent rules.
 - `src/workbench/git` and `src/workbench/worktrees` for Git integration.
 - `src/workbench/agents` for provider adapters.
 - `src/workbench/validation` and `src/workbench/evidence` for checks and proof.
 - `src/workbench/review` for deterministic diff summaries and risk findings.
+- `src/workbench/github` for GitHub CLI integration and PR orchestration.
 - `src/workbench/cli` and `src/workbench/api` for local interfaces.
 - `apps/dashboard` for the local operational UI.
 
@@ -64,4 +65,8 @@ Acceptance matrix and review finding domain types live in
 `src/workbench/review/diff.py`, and acceptance/review orchestration lives in
 `src/workbench/review/service.py`.
 
-PR workflow and portfolio export are not implemented yet.
+Pull-request persistence lives in `src/workbench/domain/pull_requests.py` and
+`PullRequestRepository`. GitHub CLI execution and PR body/readiness orchestration
+live in `src/workbench/github`.
+
+Portfolio export is not implemented yet.
