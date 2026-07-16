@@ -21,11 +21,22 @@ npm test
 
 ## `workbench doctor` reports missing optional tools
 
-Docker, Codex CLI, and Claude Code are optional during Milestone 0. Later
-milestones will require the selected tool only when a workflow uses it.
+Docker, Codex CLI, and Claude Code are optional in the current registry
+milestone. Later milestones will require the selected tool only when a workflow
+uses it.
 
 ## SQLite database creation
 
 Milestone 1 initializes SQLite tables through application code. If a database
 file cannot be created, check that the parent directory exists or is writable by
 the current user.
+
+## Project registration fails
+
+`workbench project add PATH` requires:
+
+- `PATH` is inside a Git work tree.
+- The repository has a `harness.yaml`.
+- The harness includes explicit command groups.
+- The harness default branch exists locally.
+- `origin` remote is configured.

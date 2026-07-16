@@ -8,7 +8,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from workbench.database.models import ProjectRecord, TaskRecord
-from workbench.domain.enums import TaskStatus
+from workbench.domain.enums import ProjectStatus, TaskStatus
 from workbench.domain.errors import DuplicateEntityError, ValidationError
 from workbench.domain.projects import Project, ProjectCreate
 from workbench.domain.status import ensure_task_transition_allowed
@@ -55,6 +55,16 @@ class ProjectRepository:
     def list(self) -> list[Project]:
         records = self._session.scalars(select(ProjectRecord).order_by(ProjectRecord.id)).all()
         return [_project_from_record(record) for record in records]
+
+    def disable(self, project_id: str) -> Project:
+        record = self._session.get(ProjectRecord, project_id)
+        if record is None:
+            msg = f"project does not exist: {project_id}"
+            raise ValidationError(msg)
+        record.status = ProjectStatus.INACTIVE
+        record.date_updated = utc_now()
+        self._session.flush()
+        return _project_from_record(record)
 
 
 class TaskRepository:

@@ -23,8 +23,8 @@ The system must inspect exit codes and stored evidence before marking work ready
 
 ## Current Structure
 
-The current implementation establishes module boundaries and the Milestone 1
-domain/persistence slice:
+The current implementation establishes module boundaries, the Milestone 1
+domain/persistence slice, and the Milestone 2 project registry slice:
 
 - `src/workbench/domain` for provider-independent rules.
 - `src/workbench/git` and `src/workbench/worktrees` for Git integration.
@@ -37,6 +37,9 @@ SQLite mappings live in `src/workbench/database/models.py`. Project and task
 repositories live in `src/workbench/database/repositories.py`. Task schema
 validation lives in `src/workbench/tasks/schema.py`.
 
-Task workflow commands, Git worktree lifecycle, agent execution, validation
-engine, review workflow, PR workflow, and portfolio export are not implemented
-yet.
+Harness parsing lives in `src/workbench/config/harness.py`. Git repository
+inspection lives in `src/workbench/git/repository.py`. Project registration and
+path validation live in `src/workbench/projects/registry.py`.
+
+Task import commands, Git worktree lifecycle, agent execution, validation engine,
+review workflow, PR workflow, and portfolio export are not implemented yet.
