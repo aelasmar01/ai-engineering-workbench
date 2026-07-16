@@ -91,3 +91,33 @@ Agent launch fails if:
 Use `workbench agent list` to inspect provider availability. Use
 `WORKBENCH_CODEX_COMMAND` or `WORKBENCH_CLAUDE_COMMAND` to point at a specific
 local executable when the default command name is not correct.
+
+## `workbench diff` shows no changed files
+
+`workbench diff TASK_ID` reads the active task worktree. Confirm that:
+
+- The task has been started with `workbench task start TASK_ID`.
+- Your edits are inside the generated worktree, not the base repository.
+- The base branch recorded for the worktree still exists.
+
+Untracked files are included in the summary, but ignored files are not treated as
+task changes.
+
+## `workbench review` creates high-risk findings
+
+The deterministic review command records findings for path-based risk categories
+such as dependencies, CI, infrastructure, security, migrations, protected paths,
+and untracked files. Resolve a finding only after human review:
+
+```bash
+uv run workbench finding resolve FINDING_ID --explanation "Reviewed and accepted"
+```
+
+## `workbench acceptance verify` rejects a criterion
+
+The criterion text must exactly match one of the task's acceptance criteria.
+Run the matrix command first and copy the criterion text from the task:
+
+```bash
+uv run workbench acceptance matrix TASK_ID
+```

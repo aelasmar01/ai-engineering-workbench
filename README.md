@@ -4,16 +4,16 @@ AI Engineering Workbench is a local-first control plane for a single developer
 using Git worktrees, Codex, Claude Code, GitHub CLI, and deterministic validation
 to complete reviewable engineering tasks across multiple repositories.
 
-This repository currently contains the Milestone 6 foundation. It includes
+This repository currently contains the Milestone 7 foundation. It includes
 typed domain schemas, SQLite schema initialization, project/task persistence,
 task batch validation, deterministic task status-transition rules, harness
 parsing, Git repository validation, project registry CLI commands, task import,
 task listing, task detail, deterministic next-task selection, and Git worktree
 lifecycle support, validation command execution with evidence capture, and local
-agent adapter/session support.
+agent adapter/session support, acceptance matrix tracking, deterministic diff
+risk classification, and review finding persistence.
 
-It does not yet implement pull-request creation, review workflows, or portfolio
-export.
+It does not yet implement pull-request creation or portfolio export.
 
 ## Requirements
 
@@ -56,6 +56,11 @@ uv run workbench agent list
 uv run workbench agent launch TASK_ID --agent manual --role implementer
 uv run workbench agent status SESSION_ID
 uv run workbench agent stop SESSION_ID
+uv run workbench diff TASK_ID
+uv run workbench review TASK_ID
+uv run workbench finding list TASK_ID
+uv run workbench acceptance matrix TASK_ID
+uv run workbench acceptance verify TASK_ID --criterion "Criterion" --evidence-type manual --evidence-reference "notes"
 uv run workbench worktree list
 uv run workbench worktree remove TASK_ID --yes
 make api
@@ -90,6 +95,13 @@ The API and dashboard bind to localhost by default.
 - Agent sessions use provider-independent adapters for manual, Codex CLI, and
   Claude Code. Codex and Claude are invoked through local command-line tools
   only, not model APIs.
+- Diff review classifies changed files with deterministic path and file-name
+  rules for protected paths, dependencies, CI, infrastructure, security,
+  migrations, test files, documentation, untracked files, and binary files.
+- Acceptance criteria remain unverified until a deterministic command result or
+  explicit human verification record is persisted.
+- Review findings are persisted and unresolved high-risk findings remain visible
+  until explicitly resolved with an explanation.
 
 ## Repository Layout
 

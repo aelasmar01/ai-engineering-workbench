@@ -8,16 +8,30 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from workbench.database.models import (
+    AcceptanceCriterionResultRecord,
     AgentSessionRecord,
     ProjectRecord,
+    ReviewFindingRecord,
     TaskRecord,
     ValidationRunRecord,
     WorktreeRecord,
 )
 from workbench.domain.agents import AgentSession, AgentSessionCreate
-from workbench.domain.enums import AgentSessionStatus, ProjectStatus, TaskStatus, WorktreeStatus
+from workbench.domain.enums import (
+    AgentSessionStatus,
+    ProjectStatus,
+    ReviewFindingStatus,
+    TaskStatus,
+    WorktreeStatus,
+)
 from workbench.domain.errors import DuplicateEntityError, ValidationError
 from workbench.domain.projects import Project, ProjectCreate
+from workbench.domain.review import (
+    AcceptanceCriterionResult,
+    AcceptanceCriterionResultCreate,
+    ReviewFinding,
+    ReviewFindingCreate,
+)
 from workbench.domain.status import ensure_task_transition_allowed
 from workbench.domain.tasks import Task, TaskCreate
 from workbench.domain.validation import ValidationRun, ValidationRunCreate
@@ -353,6 +367,94 @@ class AgentSessionRepository:
         return [_agent_session_from_record(record) for record in records]
 
 
+class AcceptanceCriterionRepository:
+    def __init__(self, session: Session) -> None:
+        self._session = session
+
+    def upsert(self, result: AcceptanceCriterionResultCreate) -> AcceptanceCriterionResult:
+        existing = self._session.scalars(
+            select(AcceptanceCriterionResultRecord)
+            .where(AcceptanceCriterionResultRecord.task_id == result.task_id)
+            .where(AcceptanceCriterionResultRecord.criterion_text == result.criterion_text)
+        ).first()
+        if existing is None:
+            record = AcceptanceCriterionResultRecord(
+                id=result.id,
+                task_id=result.task_id,
+                criterion_text=result.criterion_text,
+                status=result.status,
+                evidence_type=result.evidence_type,
+                evidence_reference=result.evidence_reference,
+                verification_method=result.verification_method,
+                verified_by=result.verified_by,
+                verification_timestamp=result.verification_timestamp,
+            )
+            self._session.add(record)
+        else:
+            record = existing
+            record.status = result.status
+            record.evidence_type = result.evidence_type
+            record.evidence_reference = result.evidence_reference
+            record.verification_method = result.verification_method
+            record.verified_by = result.verified_by
+            record.verification_timestamp = result.verification_timestamp
+        self._session.flush()
+        return _acceptance_result_from_record(record)
+
+    def list_for_task(self, task_id: str) -> list[AcceptanceCriterionResult]:
+        records = self._session.scalars(
+            select(AcceptanceCriterionResultRecord)
+            .where(AcceptanceCriterionResultRecord.task_id == task_id)
+            .order_by(AcceptanceCriterionResultRecord.criterion_text)
+        ).all()
+        return [_acceptance_result_from_record(record) for record in records]
+
+
+class ReviewFindingRepository:
+    def __init__(self, session: Session) -> None:
+        self._session = session
+
+    def add(self, finding: ReviewFindingCreate) -> ReviewFinding:
+        record = ReviewFindingRecord(
+            id=finding.id,
+            task_id=finding.task_id,
+            severity=finding.severity,
+            category=finding.category,
+            file=finding.file,
+            line=finding.line,
+            description=finding.description,
+            recommendation=finding.recommendation,
+            status=finding.status,
+            resolution_explanation=finding.resolution_explanation,
+            reviewer_type=finding.reviewer_type,
+        )
+        self._session.add(record)
+        try:
+            self._session.flush()
+        except IntegrityError as error:
+            msg = f"review finding already exists: {finding.id}"
+            raise DuplicateEntityError(msg) from error
+        return _review_finding_from_record(record)
+
+    def list_for_task(self, task_id: str) -> list[ReviewFinding]:
+        records = self._session.scalars(
+            select(ReviewFindingRecord)
+            .where(ReviewFindingRecord.task_id == task_id)
+            .order_by(ReviewFindingRecord.severity, ReviewFindingRecord.file)
+        ).all()
+        return [_review_finding_from_record(record) for record in records]
+
+    def resolve(self, finding_id: str, explanation: str) -> ReviewFinding:
+        record = self._session.get(ReviewFindingRecord, finding_id)
+        if record is None:
+            msg = f"review finding does not exist: {finding_id}"
+            raise ValidationError(msg)
+        record.status = ReviewFindingStatus.RESOLVED
+        record.resolution_explanation = explanation
+        self._session.flush()
+        return _review_finding_from_record(record)
+
+
 def _project_from_record(record: ProjectRecord) -> Project:
     return Project(
         id=record.id,
@@ -440,4 +542,36 @@ def _agent_session_from_record(record: AgentSessionRecord) -> AgentSession:
         last_activity_time=record.last_activity_time,
         exit_code=record.exit_code,
         status=record.status,
+    )
+
+
+def _acceptance_result_from_record(
+    record: AcceptanceCriterionResultRecord,
+) -> AcceptanceCriterionResult:
+    return AcceptanceCriterionResult(
+        id=record.id,
+        task_id=record.task_id,
+        criterion_text=record.criterion_text,
+        status=record.status,
+        evidence_type=record.evidence_type,
+        evidence_reference=record.evidence_reference,
+        verification_method=record.verification_method,
+        verified_by=record.verified_by,
+        verification_timestamp=record.verification_timestamp,
+    )
+
+
+def _review_finding_from_record(record: ReviewFindingRecord) -> ReviewFinding:
+    return ReviewFinding(
+        id=record.id,
+        task_id=record.task_id,
+        severity=record.severity,
+        category=record.category,
+        file=record.file,
+        line=record.line,
+        description=record.description,
+        recommendation=record.recommendation,
+        status=record.status,
+        resolution_explanation=record.resolution_explanation,
+        reviewer_type=record.reviewer_type,
     )
