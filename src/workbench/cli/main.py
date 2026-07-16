@@ -12,7 +12,12 @@ from rich.table import Table
 
 from workbench import __version__
 from workbench.config.settings import WorkbenchSettings, load_settings
-from workbench.database.repositories import ProjectRepository, TaskRepository, WorktreeRepository
+from workbench.database.repositories import (
+    ProjectRepository,
+    TaskRepository,
+    ValidationRunRepository,
+    WorktreeRepository,
+)
 from workbench.database.session import (
     create_session_factory,
     create_sqlite_engine,
@@ -21,10 +26,12 @@ from workbench.database.session import (
 from workbench.domain.errors import WorkbenchError
 from workbench.domain.projects import Project
 from workbench.domain.tasks import Task
+from workbench.domain.validation import ValidationRun
 from workbench.domain.worktrees import Worktree
 from workbench.projects.registry import register_project, validate_project_path
 from workbench.tasks.schema import load_task_documents, validate_task_batch
 from workbench.tasks.selection import select_next_task
+from workbench.validation.runner import ValidationRequest, run_validation
 from workbench.worktrees.service import remove_task_worktree, start_task_worktree
 
 app = typer.Typer(help="Local-first AI engineering control plane.")
@@ -105,7 +112,12 @@ def _repository_context() -> tuple[Any, ProjectRepository, TaskRepository]:
 
 
 def _full_repository_context() -> tuple[
-    Any, ProjectRepository, TaskRepository, WorktreeRepository, WorkbenchSettings
+    Any,
+    ProjectRepository,
+    TaskRepository,
+    WorktreeRepository,
+    ValidationRunRepository,
+    WorkbenchSettings,
 ]:
     settings = load_settings()
     engine = create_sqlite_engine(settings.database_path)
@@ -117,6 +129,7 @@ def _full_repository_context() -> tuple[
         ProjectRepository(session),
         TaskRepository(session),
         WorktreeRepository(session),
+        ValidationRunRepository(session),
         settings,
     )
 
@@ -176,6 +189,22 @@ def _worktree_payload(worktree: Worktree) -> dict[str, Any]:
     }
 
 
+def _validation_payload(validation_run: ValidationRun) -> dict[str, Any]:
+    return {
+        "id": validation_run.id,
+        "task_id": validation_run.task_id,
+        "worktree_id": validation_run.worktree_id,
+        "check_name": validation_run.check_name,
+        "command": validation_run.command,
+        "start_time": validation_run.start_time.isoformat(),
+        "end_time": validation_run.end_time.isoformat() if validation_run.end_time else None,
+        "exit_code": validation_run.exit_code,
+        "status": validation_run.status.value,
+        "output_path": str(validation_run.output_path),
+        "parsed_summary": validation_run.parsed_summary,
+    }
+
+
 def _print_project_table(projects: list[Project]) -> None:
     table = Table(title="Registered Projects")
     table.add_column("ID")
@@ -228,6 +257,24 @@ def _print_worktree_table(worktrees: list[Worktree], *, title: str = "Worktrees"
             worktree.status.value,
             worktree.branch_name,
             str(worktree.worktree_path),
+        )
+    console.print(table)
+
+
+def _print_validation_table(
+    validation_runs: list[ValidationRun], *, title: str = "Validation Runs"
+) -> None:
+    table = Table(title=title)
+    table.add_column("Check")
+    table.add_column("Status")
+    table.add_column("Exit")
+    table.add_column("Output")
+    for validation_run in validation_runs:
+        table.add_row(
+            validation_run.check_name,
+            validation_run.status.value,
+            "" if validation_run.exit_code is None else str(validation_run.exit_code),
+            str(validation_run.output_path),
         )
     console.print(table)
 
@@ -513,9 +560,14 @@ def task_start(
     json_output: bool = typer.Option(False, "--json", help="Emit JSON output."),
 ) -> None:
     """Start a task by creating a dedicated branch and Git worktree."""
-    session, project_repository, task_repository, worktree_repository, settings = (
-        _full_repository_context()
-    )
+    (
+        session,
+        project_repository,
+        task_repository,
+        worktree_repository,
+        _validation_repository,
+        settings,
+    ) = _full_repository_context()
     try:
         started = start_task_worktree(
             task_id=task_id,
@@ -616,9 +668,14 @@ def worktree_list(
     json_output: bool = typer.Option(False, "--json", help="Emit JSON output."),
 ) -> None:
     """List recorded task worktrees."""
-    session, _project_repository, _task_repository, worktree_repository, _settings = (
-        _full_repository_context()
-    )
+    (
+        session,
+        _project_repository,
+        _task_repository,
+        worktree_repository,
+        _validation_repository,
+        _settings,
+    ) = _full_repository_context()
     try:
         worktrees = worktree_repository.list()
     finally:
@@ -639,9 +696,14 @@ def worktree_remove(
     """Remove the active worktree for a task after explicit confirmation."""
     if not yes:
         _exit_with_error("worktree removal requires --yes")
-    session, _project_repository, _task_repository, worktree_repository, _settings = (
-        _full_repository_context()
-    )
+    (
+        session,
+        _project_repository,
+        _task_repository,
+        worktree_repository,
+        _validation_repository,
+        _settings,
+    ) = _full_repository_context()
     try:
         worktree = remove_task_worktree(task_id=task_id, worktree_repository=worktree_repository)
         session.commit()
@@ -654,3 +716,70 @@ def worktree_remove(
         console.print(json.dumps(_worktree_payload(worktree), indent=2))
     else:
         console.print(f"Removed worktree for task {task_id}")
+
+
+@app.command("check")
+def check_task(
+    task_id: str,
+    only: str | None = typer.Option(None, "--only", help="Run one configured check group."),
+    timeout_seconds: int = typer.Option(300, "--timeout", help="Per-command timeout in seconds."),
+    json_output: bool = typer.Option(False, "--json", help="Emit JSON output."),
+) -> None:
+    """Run configured validation checks in the task worktree."""
+    (
+        session,
+        project_repository,
+        task_repository,
+        worktree_repository,
+        validation_repository,
+        settings,
+    ) = _full_repository_context()
+    try:
+        validation_runs = run_validation(
+            request=ValidationRequest(
+                task_id=task_id,
+                only=only,
+                timeout_seconds=timeout_seconds,
+                evidence_root=settings.data_dir / "evidence",
+            ),
+            project_repository=project_repository,
+            task_repository=task_repository,
+            worktree_repository=worktree_repository,
+            validation_repository=validation_repository,
+        )
+        session.commit()
+    except WorkbenchError as error:
+        session.rollback()
+        _exit_with_error(str(error))
+    finally:
+        session.close()
+    if json_output:
+        console.print(json.dumps([_validation_payload(run) for run in validation_runs], indent=2))
+    else:
+        _print_validation_table(validation_runs)
+    if any(run.status.value not in {"passed"} for run in validation_runs):
+        raise typer.Exit(code=1)
+
+
+@app.command("evidence")
+def evidence_task(
+    task_id: str,
+    json_output: bool = typer.Option(False, "--json", help="Emit JSON output."),
+) -> None:
+    """List stored validation evidence for a task."""
+    (
+        session,
+        _project_repository,
+        _task_repository,
+        _worktree_repository,
+        validation_repository,
+        _settings,
+    ) = _full_repository_context()
+    try:
+        validation_runs = validation_repository.list_for_task(task_id)
+    finally:
+        session.close()
+    if json_output:
+        console.print(json.dumps([_validation_payload(run) for run in validation_runs], indent=2))
+    else:
+        _print_validation_table(validation_runs, title=f"Evidence for {task_id}")

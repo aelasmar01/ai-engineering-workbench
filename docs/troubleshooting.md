@@ -66,3 +66,15 @@ Starting a task creates a branch and Git worktree. It fails if:
 - The target worktree path already exists.
 - The task already has an active worktree.
 - The task status cannot transition to `in_progress`.
+
+## `workbench check` fails
+
+Validation checks fail if:
+
+- The task has no active worktree.
+- The requested `--only` check is not configured in `harness.yaml`.
+- A command exits non-zero.
+- A command exceeds the timeout.
+- The command executable is missing from `PATH`.
+
+Failed checks still write raw evidence output and are recorded in SQLite.

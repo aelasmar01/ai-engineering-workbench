@@ -7,12 +7,18 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from workbench.database.models import ProjectRecord, TaskRecord, WorktreeRecord
+from workbench.database.models import (
+    ProjectRecord,
+    TaskRecord,
+    ValidationRunRecord,
+    WorktreeRecord,
+)
 from workbench.domain.enums import ProjectStatus, TaskStatus, WorktreeStatus
 from workbench.domain.errors import DuplicateEntityError, ValidationError
 from workbench.domain.projects import Project, ProjectCreate
 from workbench.domain.status import ensure_task_transition_allowed
 from workbench.domain.tasks import Task, TaskCreate
+from workbench.domain.validation import ValidationRun, ValidationRunCreate
 from workbench.domain.worktrees import Worktree, WorktreeCreate
 
 
@@ -247,6 +253,41 @@ class WorktreeRepository:
         return _worktree_from_record(record)
 
 
+class ValidationRunRepository:
+    def __init__(self, session: Session) -> None:
+        self._session = session
+
+    def add(self, validation_run: ValidationRunCreate) -> ValidationRun:
+        record = ValidationRunRecord(
+            id=validation_run.id,
+            task_id=validation_run.task_id,
+            worktree_id=validation_run.worktree_id,
+            check_name=validation_run.check_name,
+            command=validation_run.command,
+            start_time=validation_run.start_time,
+            end_time=validation_run.end_time,
+            exit_code=validation_run.exit_code,
+            status=validation_run.status,
+            output_path=str(validation_run.output_path),
+            parsed_summary=validation_run.parsed_summary,
+        )
+        self._session.add(record)
+        try:
+            self._session.flush()
+        except IntegrityError as error:
+            msg = f"validation run already exists: {validation_run.id}"
+            raise DuplicateEntityError(msg) from error
+        return _validation_run_from_record(record)
+
+    def list_for_task(self, task_id: str) -> list[ValidationRun]:
+        records = self._session.scalars(
+            select(ValidationRunRecord)
+            .where(ValidationRunRecord.task_id == task_id)
+            .order_by(ValidationRunRecord.start_time.desc())
+        ).all()
+        return [_validation_run_from_record(record) for record in records]
+
+
 def _project_from_record(record: ProjectRecord) -> Project:
     return Project(
         id=record.id,
@@ -299,4 +340,20 @@ def _worktree_from_record(record: WorktreeRecord) -> Worktree:
         status=record.status,
         date_created=record.date_created,
         date_removed=record.date_removed,
+    )
+
+
+def _validation_run_from_record(record: ValidationRunRecord) -> ValidationRun:
+    return ValidationRun(
+        id=record.id,
+        task_id=record.task_id,
+        worktree_id=record.worktree_id,
+        check_name=record.check_name,
+        command=record.command,
+        start_time=record.start_time,
+        end_time=record.end_time,
+        exit_code=record.exit_code,
+        status=record.status,
+        output_path=Path(record.output_path),
+        parsed_summary=record.parsed_summary,
     )

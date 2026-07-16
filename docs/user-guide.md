@@ -5,7 +5,7 @@ endpoint, a dashboard shell, typed project/task domain models, SQLite schema
 initialization, repository classes for project/task persistence, harness
 validation, Git repository validation, project registry commands, task import,
 task listing, task detail, deterministic next-task selection, and Git worktree
-lifecycle support.
+lifecycle support, and validation command execution with evidence capture.
 
 ## Install
 
@@ -38,12 +38,14 @@ uv run workbench task start TASK_ID
 uv run workbench task block TASK_ID --reason "Reason"
 uv run workbench task unblock TASK_ID
 uv run workbench task complete TASK_ID
+uv run workbench check TASK_ID
+uv run workbench check TASK_ID --only test
+uv run workbench evidence TASK_ID
 uv run workbench worktree list
 uv run workbench worktree remove TASK_ID --yes
 ```
 
-Agent launch, validation execution, PR creation, and portfolio export are
-planned for later milestones.
+Agent launch, PR creation, and portfolio export are planned for later milestones.
 
 ## Worktrees
 
@@ -55,4 +57,17 @@ Worktree removal requires explicit confirmation:
 
 ```bash
 uv run workbench worktree remove TASK_ID --yes
+```
+
+## Validation
+
+`workbench check TASK_ID` runs the task's required checks from `harness.yaml` in
+the active task worktree. Use `--only CHECK_NAME` to run one configured command
+group.
+
+Raw output is written under `WORKBENCH_DATA_DIR/evidence`, and validation run
+metadata is persisted in SQLite:
+
+```bash
+uv run workbench evidence TASK_ID
 ```
