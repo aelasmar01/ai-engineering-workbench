@@ -117,6 +117,13 @@ class TaskRepository:
         ).all()
         return [_task_from_record(record) for record in records]
 
+    def list(self) -> list[Task]:
+        records = self._session.scalars(select(TaskRecord).order_by(TaskRecord.id)).all()
+        return [_task_from_record(record) for record in records]
+
+    def existing_ids(self) -> set[str]:
+        return set(self._session.scalars(select(TaskRecord.id)).all())
+
     def update_status(self, task_id: str, next_status: TaskStatus) -> Task:
         record = self._session.get(TaskRecord, task_id)
         if record is None:
@@ -131,6 +138,54 @@ class TaskRepository:
             record.date_completed = now
         self._session.flush()
         return _task_from_record(record)
+
+    def start(self, task_id: str) -> Task:
+        record = self._task_record(task_id)
+        if record.status == TaskStatus.BACKLOG:
+            ensure_task_transition_allowed(record.status, TaskStatus.READY)
+            record.status = TaskStatus.READY
+        ensure_task_transition_allowed(record.status, TaskStatus.IN_PROGRESS)
+        record.status = TaskStatus.IN_PROGRESS
+        record.blocking_reason = None
+        if record.date_started is None:
+            record.date_started = utc_now()
+        self._session.flush()
+        return _task_from_record(record)
+
+    def block(self, task_id: str, reason: str) -> Task:
+        if not reason.strip():
+            msg = "blocking reason must not be empty"
+            raise ValidationError(msg)
+        record = self._task_record(task_id)
+        ensure_task_transition_allowed(record.status, TaskStatus.BLOCKED)
+        record.status = TaskStatus.BLOCKED
+        record.blocking_reason = reason
+        self._session.flush()
+        return _task_from_record(record)
+
+    def unblock(self, task_id: str) -> Task:
+        record = self._task_record(task_id)
+        ensure_task_transition_allowed(record.status, TaskStatus.READY)
+        record.status = TaskStatus.READY
+        record.blocking_reason = None
+        self._session.flush()
+        return _task_from_record(record)
+
+    def complete(self, task_id: str) -> Task:
+        record = self._task_record(task_id)
+        ensure_task_transition_allowed(record.status, TaskStatus.COMPLETED)
+        record.status = TaskStatus.COMPLETED
+        if record.date_completed is None:
+            record.date_completed = utc_now()
+        self._session.flush()
+        return _task_from_record(record)
+
+    def _task_record(self, task_id: str) -> TaskRecord:
+        record = self._session.get(TaskRecord, task_id)
+        if record is None:
+            msg = f"task does not exist: {task_id}"
+            raise ValidationError(msg)
+        return record
 
 
 def _project_from_record(record: ProjectRecord) -> Project:

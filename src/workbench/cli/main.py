@@ -12,7 +12,7 @@ from rich.table import Table
 
 from workbench import __version__
 from workbench.config.settings import WorkbenchSettings, load_settings
-from workbench.database.repositories import ProjectRepository
+from workbench.database.repositories import ProjectRepository, TaskRepository
 from workbench.database.session import (
     create_session_factory,
     create_sqlite_engine,
@@ -20,11 +20,16 @@ from workbench.database.session import (
 )
 from workbench.domain.errors import WorkbenchError
 from workbench.domain.projects import Project
+from workbench.domain.tasks import Task
 from workbench.projects.registry import register_project, validate_project_path
+from workbench.tasks.schema import load_task_documents, validate_task_batch
+from workbench.tasks.selection import select_next_task
 
 app = typer.Typer(help="Local-first AI engineering control plane.")
 project_app = typer.Typer(help="Register and inspect local Git repositories.")
+task_app = typer.Typer(help="Import and manage backlog tasks.")
 app.add_typer(project_app, name="project")
+app.add_typer(task_app, name="task")
 console = Console()
 error_console = Console(stderr=True)
 
@@ -86,6 +91,15 @@ def _project_repository_context() -> tuple[Any, Any]:
     return session, ProjectRepository(session)
 
 
+def _repository_context() -> tuple[Any, ProjectRepository, TaskRepository]:
+    settings = load_settings()
+    engine = create_sqlite_engine(settings.database_path)
+    initialize_database(engine)
+    session_factory = create_session_factory(engine)
+    session = session_factory()
+    return session, ProjectRepository(session), TaskRepository(session)
+
+
 def _project_payload(project: Project) -> dict[str, Any]:
     return {
         "id": project.id,
@@ -99,6 +113,30 @@ def _project_payload(project: Project) -> dict[str, Any]:
         "status": project.status.value,
         "date_created": project.date_created.isoformat(),
         "date_updated": project.date_updated.isoformat(),
+    }
+
+
+def _task_payload(task: Task) -> dict[str, Any]:
+    return {
+        "id": task.id,
+        "project": task.project_id,
+        "title": task.title,
+        "objective": task.objective,
+        "type": task.type.value,
+        "priority": task.priority.value,
+        "status": task.status.value,
+        "estimated_minutes": task.estimated_minutes,
+        "acceptance_criteria": task.acceptance_criteria,
+        "constraints": task.constraints,
+        "expected_paths": task.expected_paths,
+        "required_checks": task.required_checks,
+        "portfolio_signals": task.portfolio_signals,
+        "dependencies": task.dependencies,
+        "blocking_reason": task.blocking_reason,
+        "target_branch": task.target_branch,
+        "date_created": task.date_created.isoformat(),
+        "date_started": task.date_started.isoformat() if task.date_started else None,
+        "date_completed": task.date_completed.isoformat() if task.date_completed else None,
     }
 
 
@@ -116,6 +154,26 @@ def _print_project_table(projects: list[Project]) -> None:
             project.status.value,
             project.default_branch,
             str(project.local_repository_path),
+        )
+    console.print(table)
+
+
+def _print_task_table(tasks: list[Task], *, title: str = "Tasks") -> None:
+    table = Table(title=title)
+    table.add_column("ID")
+    table.add_column("Project")
+    table.add_column("Priority")
+    table.add_column("Status")
+    table.add_column("Title")
+    table.add_column("Deps")
+    for task in tasks:
+        table.add_row(
+            task.id,
+            task.project_id,
+            task.priority.value,
+            task.status.value,
+            task.title,
+            ", ".join(task.dependencies),
         )
     console.print(table)
 
@@ -299,3 +357,174 @@ def project_disable(
         console.print(json.dumps(payload, indent=2))
     else:
         console.print(f"Disabled project {project.id}")
+
+
+@task_app.command("add")
+def task_add(
+    file: Path,
+    json_output: bool = typer.Option(False, "--json", help="Emit JSON output."),
+) -> None:
+    """Import one or more tasks from a YAML file."""
+    session, project_repository, task_repository = _repository_context()
+    try:
+        raw_tasks = load_task_documents(file.read_text(encoding="utf-8"))
+        valid_project_ids = {project.id for project in project_repository.list()}
+        tasks = validate_task_batch(
+            raw_tasks,
+            valid_project_ids=valid_project_ids,
+            existing_task_ids=task_repository.existing_ids(),
+        )
+        imported = [task_repository.add(task) for task in tasks]
+        session.commit()
+    except OSError as error:
+        session.rollback()
+        _exit_with_error(f"could not read task file {file}: {error}")
+    except WorkbenchError as error:
+        session.rollback()
+        _exit_with_error(str(error))
+    finally:
+        session.close()
+    payload = [_task_payload(task) for task in imported]
+    if json_output:
+        console.print(json.dumps(payload, indent=2))
+    else:
+        console.print(f"Imported {len(imported)} task(s)")
+        _print_task_table(imported, title="Imported Tasks")
+
+
+@task_app.command("list")
+def task_list(
+    project: str | None = typer.Option(None, "--project", help="Filter by project ID."),
+    json_output: bool = typer.Option(False, "--json", help="Emit JSON output."),
+) -> None:
+    """List backlog tasks."""
+    session, _project_repository, task_repository = _repository_context()
+    try:
+        tasks = (
+            task_repository.list_for_project(project)
+            if project is not None
+            else task_repository.list()
+        )
+    finally:
+        session.close()
+    payload = [_task_payload(task) for task in tasks]
+    if json_output:
+        console.print(json.dumps(payload, indent=2))
+    else:
+        _print_task_table(tasks)
+
+
+@task_app.command("show")
+def task_show(
+    task_id: str,
+    json_output: bool = typer.Option(False, "--json", help="Emit JSON output."),
+) -> None:
+    """Show one backlog task."""
+    session, _project_repository, task_repository = _repository_context()
+    try:
+        task = task_repository.get(task_id)
+    finally:
+        session.close()
+    if task is None:
+        _exit_with_error(f"task does not exist: {task_id}")
+    payload = _task_payload(task)
+    if json_output:
+        console.print(json.dumps(payload, indent=2))
+    else:
+        _print_task_table([task], title=f"Task {task.id}")
+
+
+@task_app.command("next")
+def task_next(
+    json_output: bool = typer.Option(False, "--json", help="Emit JSON output."),
+) -> None:
+    """Show the highest-priority eligible task."""
+    session, _project_repository, task_repository = _repository_context()
+    try:
+        task = select_next_task(task_repository.list())
+    finally:
+        session.close()
+    if task is None:
+        _exit_with_error("no eligible task found")
+    payload = _task_payload(task)
+    if json_output:
+        console.print(json.dumps(payload, indent=2))
+    else:
+        _print_task_table([task], title="Next Task")
+
+
+@task_app.command("start")
+def task_start(
+    task_id: str,
+    json_output: bool = typer.Option(False, "--json", help="Emit JSON output."),
+) -> None:
+    """Mark a task in progress without creating a worktree yet."""
+    task = _mutate_task(task_id, "start")
+    if json_output:
+        console.print(json.dumps(_task_payload(task), indent=2))
+    else:
+        console.print(f"Started task {task.id}")
+
+
+@task_app.command("block")
+def task_block(
+    task_id: str,
+    reason: str = typer.Option(..., "--reason", "-r", help="Blocking reason."),
+    json_output: bool = typer.Option(False, "--json", help="Emit JSON output."),
+) -> None:
+    """Mark a task blocked with a required reason."""
+    task = _mutate_task(task_id, "block", reason=reason)
+    if json_output:
+        console.print(json.dumps(_task_payload(task), indent=2))
+    else:
+        console.print(f"Blocked task {task.id}")
+
+
+@task_app.command("unblock")
+def task_unblock(
+    task_id: str,
+    json_output: bool = typer.Option(False, "--json", help="Emit JSON output."),
+) -> None:
+    """Move a blocked task back to ready."""
+    task = _mutate_task(task_id, "unblock")
+    if json_output:
+        console.print(json.dumps(_task_payload(task), indent=2))
+    else:
+        console.print(f"Unblocked task {task.id}")
+
+
+@task_app.command("complete")
+def task_complete(
+    task_id: str,
+    json_output: bool = typer.Option(False, "--json", help="Emit JSON output."),
+) -> None:
+    """Mark a task complete after valid state transitions."""
+    task = _mutate_task(task_id, "complete")
+    if json_output:
+        console.print(json.dumps(_task_payload(task), indent=2))
+    else:
+        console.print(f"Completed task {task.id}")
+
+
+def _mutate_task(task_id: str, operation: str, *, reason: str | None = None) -> Task:
+    session, _project_repository, task_repository = _repository_context()
+    try:
+        if operation == "start":
+            task = task_repository.start(task_id)
+        elif operation == "block":
+            if reason is None:
+                _exit_with_error("blocking reason is required")
+            task = task_repository.block(task_id, reason)
+        elif operation == "unblock":
+            task = task_repository.unblock(task_id)
+        elif operation == "complete":
+            task = task_repository.complete(task_id)
+        else:
+            _exit_with_error(f"unknown task operation: {operation}")
+        session.commit()
+    except WorkbenchError as error:
+        session.rollback()
+        _exit_with_error(str(error))
+    finally:
+        session.close()
+    return task

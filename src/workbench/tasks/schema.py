@@ -29,9 +29,11 @@ def validate_task_batch(
     raw_tasks: Iterable[Mapping[str, Any]],
     *,
     valid_project_ids: set[str],
+    existing_task_ids: set[str] | None = None,
     protected_branches: set[str] | None = None,
 ) -> list[TaskCreate]:
     protected = protected_branches or {"main", "master", "develop", "production"}
+    existing = existing_task_ids or set()
     tasks: list[TaskCreate] = []
     seen_ids: set[str] = set()
 
@@ -41,7 +43,7 @@ def validate_task_batch(
         except PydanticValidationError as error:
             msg = f"invalid task: {error}"
             raise ValidationError(msg) from error
-        if task.id in seen_ids:
+        if task.id in seen_ids or task.id in existing:
             msg = f"duplicate task id: {task.id}"
             raise ValidationError(msg)
         if task.project_id not in valid_project_ids:
@@ -53,7 +55,7 @@ def validate_task_batch(
         seen_ids.add(task.id)
         tasks.append(task)
 
-    known_task_ids = {task.id for task in tasks}
+    known_task_ids = {task.id for task in tasks} | existing
     for task in tasks:
         missing = [
             dependency for dependency in task.dependencies if dependency not in known_task_ids

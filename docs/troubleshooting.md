@@ -40,3 +40,17 @@ the current user.
 - The harness includes explicit command groups.
 - The harness default branch exists locally.
 - `origin` remote is configured.
+
+## `workbench task add` rejects a task file
+
+Check that every task has:
+
+- A unique `id`.
+- A registered `project` ID.
+- A non-empty `objective`.
+- At least one acceptance criterion.
+- Supported `type`, `priority`, and `status` values.
+- Dependencies that refer to existing tasks or tasks in the same import file.
+
+Tasks must not target protected branches such as `main`, `master`, `develop`,
+or `production` directly.
