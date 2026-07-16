@@ -4,14 +4,15 @@ AI Engineering Workbench is a local-first control plane for a single developer
 using Git worktrees, Codex, Claude Code, GitHub CLI, and deterministic validation
 to complete reviewable engineering tasks across multiple repositories.
 
-This repository currently contains the Milestone 3 foundation. It includes
+This repository currently contains the Milestone 4 foundation. It includes
 typed domain schemas, SQLite schema initialization, project/task persistence,
 task batch validation, deterministic task status-transition rules, harness
 parsing, Git repository validation, project registry CLI commands, task import,
-task listing, task detail, and deterministic next-task selection.
+task listing, task detail, deterministic next-task selection, and Git worktree
+lifecycle support.
 
-It does not yet implement Git worktree creation, agent launches, validation
-execution, pull-request creation, or portfolio export.
+It does not yet implement agent launches, validation execution, pull-request
+creation, or portfolio export.
 
 ## Requirements
 
@@ -46,6 +47,9 @@ uv run workbench project validate PROJECT_OR_PATH
 uv run workbench task add examples/sample-tasks.yaml
 uv run workbench task list
 uv run workbench task next
+uv run workbench task start TASK_ID
+uv run workbench worktree list
+uv run workbench worktree remove TASK_ID --yes
 make api
 make dashboard
 ```
@@ -69,6 +73,9 @@ The API and dashboard bind to localhost by default.
 - Task selection excludes blocked, completed, cancelled, in-progress, and
   dependency-blocked tasks, then ranks eligible tasks by priority, creation time,
   and task ID.
+- Starting a task creates a dedicated Git branch and worktree under the
+  workbench data directory after safety checks for dirty repositories, detached
+  HEAD state, branch collisions, and worktree path collisions.
 
 ## Repository Layout
 

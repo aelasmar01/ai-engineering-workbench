@@ -54,3 +54,15 @@ Check that every task has:
 
 Tasks must not target protected branches such as `main`, `master`, `develop`,
 or `production` directly.
+
+## `workbench task start` fails
+
+Starting a task creates a branch and Git worktree. It fails if:
+
+- The project repository has uncommitted changes.
+- The repository is in detached HEAD state.
+- The configured base branch is missing.
+- The generated task branch already exists.
+- The target worktree path already exists.
+- The task already has an active worktree.
+- The task status cannot transition to `in_progress`.

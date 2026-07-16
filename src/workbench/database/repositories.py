@@ -7,12 +7,13 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from workbench.database.models import ProjectRecord, TaskRecord
-from workbench.domain.enums import ProjectStatus, TaskStatus
+from workbench.database.models import ProjectRecord, TaskRecord, WorktreeRecord
+from workbench.domain.enums import ProjectStatus, TaskStatus, WorktreeStatus
 from workbench.domain.errors import DuplicateEntityError, ValidationError
 from workbench.domain.projects import Project, ProjectCreate
 from workbench.domain.status import ensure_task_transition_allowed
 from workbench.domain.tasks import Task, TaskCreate
+from workbench.domain.worktrees import Worktree, WorktreeCreate
 
 
 def utc_now() -> datetime:
@@ -188,6 +189,64 @@ class TaskRepository:
         return record
 
 
+class WorktreeRepository:
+    def __init__(self, session: Session) -> None:
+        self._session = session
+
+    def add(self, worktree: WorktreeCreate) -> Worktree:
+        now = utc_now()
+        record = WorktreeRecord(
+            id=worktree.id,
+            task_id=worktree.task_id,
+            repository_path=str(worktree.repository_path),
+            worktree_path=str(worktree.worktree_path),
+            branch_name=worktree.branch_name,
+            base_branch=worktree.base_branch,
+            git_commit_at_creation=worktree.git_commit_at_creation,
+            status=worktree.status,
+            date_created=now,
+            date_removed=None,
+        )
+        self._session.add(record)
+        try:
+            self._session.flush()
+        except IntegrityError as error:
+            msg = f"worktree already exists: {worktree.id}"
+            raise DuplicateEntityError(msg) from error
+        return _worktree_from_record(record)
+
+    def get(self, worktree_id: str) -> Worktree | None:
+        record = self._session.get(WorktreeRecord, worktree_id)
+        if record is None:
+            return None
+        return _worktree_from_record(record)
+
+    def get_active_for_task(self, task_id: str) -> Worktree | None:
+        record = self._session.scalars(
+            select(WorktreeRecord)
+            .where(WorktreeRecord.task_id == task_id)
+            .where(WorktreeRecord.status == WorktreeStatus.ACTIVE)
+            .order_by(WorktreeRecord.date_created.desc())
+        ).first()
+        if record is None:
+            return None
+        return _worktree_from_record(record)
+
+    def list(self) -> list[Worktree]:
+        records = self._session.scalars(select(WorktreeRecord).order_by(WorktreeRecord.id)).all()
+        return [_worktree_from_record(record) for record in records]
+
+    def mark_removed(self, worktree_id: str) -> Worktree:
+        record = self._session.get(WorktreeRecord, worktree_id)
+        if record is None:
+            msg = f"worktree does not exist: {worktree_id}"
+            raise ValidationError(msg)
+        record.status = WorktreeStatus.REMOVED
+        record.date_removed = utc_now()
+        self._session.flush()
+        return _worktree_from_record(record)
+
+
 def _project_from_record(record: ProjectRecord) -> Project:
     return Project(
         id=record.id,
@@ -225,4 +284,19 @@ def _task_from_record(record: TaskRecord) -> Task:
         date_created=record.date_created,
         date_started=record.date_started,
         date_completed=record.date_completed,
+    )
+
+
+def _worktree_from_record(record: WorktreeRecord) -> Worktree:
+    return Worktree(
+        id=record.id,
+        task_id=record.task_id,
+        repository_path=Path(record.repository_path),
+        worktree_path=Path(record.worktree_path),
+        branch_name=record.branch_name,
+        base_branch=record.base_branch,
+        git_commit_at_creation=record.git_commit_at_creation,
+        status=record.status,
+        date_created=record.date_created,
+        date_removed=record.date_removed,
     )

@@ -49,6 +49,48 @@ def ensure_branch_exists(path: Path, branch_name: str) -> None:
     _git(path, ["rev-parse", "--verify", branch_name])
 
 
+def current_commit(path: Path, ref: str = "HEAD") -> str:
+    return _git(path, ["rev-parse", ref])
+
+
+def ensure_clean_working_tree(path: Path) -> None:
+    status = _git(path, ["status", "--porcelain"])
+    if status:
+        msg = f"repository has uncommitted changes: {path}"
+        raise ValidationError(msg)
+
+
+def ensure_branch_missing(path: Path, branch_name: str) -> None:
+    branch_ref = _git_optional(path, ["rev-parse", "--verify", branch_name])
+    if branch_ref:
+        msg = f"branch already exists: {branch_name}"
+        raise ValidationError(msg)
+
+
+def ensure_worktree_path_available(worktree_path: Path) -> None:
+    if worktree_path.exists():
+        msg = f"worktree path already exists: {worktree_path}"
+        raise ValidationError(msg)
+
+
+def create_worktree(path: Path, worktree_path: Path, branch_name: str, base_branch: str) -> None:
+    worktree_path.parent.mkdir(parents=True, exist_ok=True)
+    _git(path, ["worktree", "add", "-b", branch_name, str(worktree_path), base_branch])
+
+
+def remove_worktree(path: Path, worktree_path: Path) -> None:
+    _git(path, ["worktree", "remove", str(worktree_path)])
+
+
+def list_worktree_paths(path: Path) -> list[Path]:
+    output = _git(path, ["worktree", "list", "--porcelain"])
+    paths: list[Path] = []
+    for line in output.splitlines():
+        if line.startswith("worktree "):
+            paths.append(Path(line.removeprefix("worktree ")).resolve())
+    return paths
+
+
 def _git(path: Path, args: list[str]) -> str:
     git = _git_executable()
     # Git execution is an explicit integration boundary using a resolved executable and argv list.

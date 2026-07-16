@@ -4,7 +4,8 @@ The current implementation provides setup, checks, a basic CLI, an API health
 endpoint, a dashboard shell, typed project/task domain models, SQLite schema
 initialization, repository classes for project/task persistence, harness
 validation, Git repository validation, project registry commands, task import,
-task listing, task detail, and deterministic next-task selection.
+task listing, task detail, deterministic next-task selection, and Git worktree
+lifecycle support.
 
 ## Install
 
@@ -37,7 +38,21 @@ uv run workbench task start TASK_ID
 uv run workbench task block TASK_ID --reason "Reason"
 uv run workbench task unblock TASK_ID
 uv run workbench task complete TASK_ID
+uv run workbench worktree list
+uv run workbench worktree remove TASK_ID --yes
 ```
 
-Worktree creation, agent launch, validation execution, PR creation, and
-portfolio export are planned for later milestones.
+Agent launch, validation execution, PR creation, and portfolio export are
+planned for later milestones.
+
+## Worktrees
+
+`workbench task start TASK_ID` creates a branch and isolated worktree for the
+task. The worktree is created under `WORKBENCH_DATA_DIR/worktrees`, and the task
+packet is written under `WORKBENCH_DATA_DIR/metadata/tasks`.
+
+Worktree removal requires explicit confirmation:
+
+```bash
+uv run workbench worktree remove TASK_ID --yes
+```
