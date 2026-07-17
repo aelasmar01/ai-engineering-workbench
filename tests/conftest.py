@@ -7,6 +7,7 @@ import pytest
 from pytest import MonkeyPatch
 
 from workbench.cli import main as cli_main
+from workbench.cli import runtime as cli_runtime
 
 
 @pytest.fixture
@@ -19,3 +20,4 @@ def fake_required_dependencies(monkeypatch: MonkeyPatch) -> None:
         return f"/fake/bin/{executable}"
 
     monkeypatch.setattr(cli_main, "resolve_executable", resolve)
+    monkeypatch.setattr(cli_runtime, "resolve_executable", resolve)
