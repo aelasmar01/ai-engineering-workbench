@@ -21,7 +21,9 @@ def run_git(path: Path, *args: str) -> str:
     return result.stdout.strip()
 
 
-def test_end_to_end_fixture_workflow(tmp_path: Path) -> None:
+def test_end_to_end_fixture_workflow(
+    tmp_path: Path, fake_required_dependencies: None
+) -> None:
     runner = CliRunner()
     data_dir = tmp_path / "data"
     env = {"WORKBENCH_DATA_DIR": str(data_dir)}

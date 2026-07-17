@@ -82,6 +82,7 @@ app.add_typer(pr_app, name="pr")
 app.add_typer(metrics_app, name="metrics")
 console = Console()
 error_console = Console(stderr=True)
+resolve_executable = shutil.which
 
 
 @dataclass(frozen=True)
@@ -103,7 +104,7 @@ FOUNDATION_DEPENDENCIES = (
 def _dependency_rows() -> list[dict[str, str | bool]]:
     rows: list[dict[str, str | bool]] = []
     for dependency in FOUNDATION_DEPENDENCIES:
-        path = shutil.which(dependency.executable)
+        path = resolve_executable(dependency.executable)
         rows.append(
             {
                 "name": dependency.name,
