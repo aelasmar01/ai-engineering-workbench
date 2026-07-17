@@ -4,22 +4,15 @@ AI Engineering Workbench is a local-first control plane for a single developer
 using Git worktrees, Codex, Claude Code, GitHub CLI, and deterministic validation
 to complete reviewable engineering tasks across multiple repositories.
 
-This repository currently contains the Milestone 10 foundation. It includes
-typed domain schemas, SQLite schema initialization, project/task persistence,
-task batch validation, deterministic task status-transition rules, harness
-parsing, Git repository validation, project registry CLI commands, task import,
-task listing, task detail, deterministic next-task selection, and Git worktree
-lifecycle support, validation command execution with evidence capture, and local
-agent adapter/session support, acceptance matrix tracking, deterministic diff
-risk classification, review finding persistence, and GitHub CLI based
-pull-request preparation/creation. The local dashboard now reads persisted state
-from the API and exposes operational views for today, projects, tasks, sessions,
-validation, review, and metrics. Sanitized portfolio metrics can be exported as
-JSON for a static GitHub Pages site.
+Version `0.1.0` implements the local-first MVP workflow: typed domain schemas,
+SQLite persistence, project registration, task import/selection/start,
+Git-worktree orchestration, validation evidence capture, local agent sessions,
+acceptance tracking, deterministic diff review, GitHub CLI pull-request
+creation, a localhost dashboard, and sanitized portfolio metric export.
 
-The initial milestone plan is implemented through portfolio export. MVP
-traceability and the end-to-end smoke workflow are documented in
-[docs/mvp-verification.md](docs/mvp-verification.md).
+MVP traceability and the end-to-end smoke workflow are documented in
+[docs/mvp-verification.md](docs/mvp-verification.md). Release notes are in
+[docs/releases/0.1.0.md](docs/releases/0.1.0.md).
 
 ## Requirements
 
