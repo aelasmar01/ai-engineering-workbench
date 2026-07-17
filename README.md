@@ -4,7 +4,7 @@ AI Engineering Workbench is a local-first control plane for a single developer
 using Git worktrees, Codex, Claude Code, GitHub CLI, and deterministic validation
 to complete reviewable engineering tasks across multiple repositories.
 
-Version `0.1.0` implements the local-first MVP workflow: typed domain schemas,
+Version `0.1.1` implements the local-first MVP workflow: typed domain schemas,
 SQLite persistence, project registration, task import/selection/start,
 Git-worktree orchestration, validation evidence capture, local agent sessions,
 acceptance tracking, deterministic diff review, GitHub CLI pull-request
@@ -12,7 +12,7 @@ creation, a localhost dashboard, and sanitized portfolio metric export.
 
 MVP traceability and the end-to-end smoke workflow are documented in
 [docs/mvp-verification.md](docs/mvp-verification.md). Release notes are in
-[docs/releases/0.1.0.md](docs/releases/0.1.0.md). A live manual testing flow
+[docs/releases/0.1.1.md](docs/releases/0.1.1.md). A live manual testing flow
 using `https://github.com/aelasmar01/testing-repo.git` is documented in
 [docs/testing-repo-workflow.md](docs/testing-repo-workflow.md). Validation
 sandboxing is deferred in
