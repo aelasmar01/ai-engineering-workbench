@@ -1,7 +1,7 @@
 # Threat Model
 
-This document is a Milestone 0 threat-model skeleton. It identifies the security
-areas that later implementation milestones must address.
+This document identifies security-sensitive areas in the local-first workbench
+and records implemented or deferred controls.
 
 ## Security-Sensitive Components
 
@@ -37,7 +37,22 @@ areas that later implementation milestones must address.
 - Use structured subprocess argument arrays where possible.
 - Avoid `shell=True` unless narrowly justified.
 - Validate repository and worktree paths before use.
-- Redact known secret patterns from displayed logs.
 - Never store GitHub tokens.
 - Require confirmation for destructive operations.
 - Treat agent-provided claims as unverified until backed by evidence.
+
+## Implemented Controls
+
+- Validation evidence is redacted at write time by
+  `workbench.evidence.redaction.redact_secrets` before `workbench check`
+  output is persisted by `workbench.validation.runner._write_output`. This
+  keeps stored evidence files clean before the CLI or dashboard displays them.
+- The redactor covers known AWS access key IDs, GitHub tokens, Slack tokens,
+  JWTs, private key blocks, authorization headers, and common assignment-style
+  secret values.
+
+## Residual Risks
+
+- Novel or project-specific secret formats may not match the current redaction
+  patterns. Users should still review validation output and avoid running
+  harness commands that intentionally print credentials.

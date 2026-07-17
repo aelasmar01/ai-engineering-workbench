@@ -37,6 +37,8 @@ def create_registered_project(tmp_path: Path, runner: CliRunner, env: dict[str, 
         commands:
           test:
             - python -c "print('passing validation')"
+          secret:
+            - python -c "print('AKIAIOSFODNN7EXAMPLE')"
           lint:
             - python -c "import sys; print('lint failed'); sys.exit(2)"
           slow:
@@ -90,6 +92,22 @@ def test_check_records_passing_validation_and_evidence(tmp_path: Path) -> None:
     output_files = list((tmp_path / "data" / "evidence" / "TASK-001" / "test").glob("*.log"))
     assert len(output_files) == 1
     assert "passing validation" in output_files[0].read_text(encoding="utf-8")
+
+
+def test_check_redacts_secrets_in_validation_evidence(tmp_path: Path) -> None:
+    runner = CliRunner()
+    env = {"WORKBENCH_DATA_DIR": str(tmp_path / "data")}
+    create_registered_project(tmp_path, runner, env)
+    import_and_start_task(tmp_path, runner, env)
+
+    check = runner.invoke(app, ["check", "TASK-001", "--only", "secret", "--json"], env=env)
+
+    assert check.exit_code == 0
+    output_files = list((tmp_path / "data" / "evidence" / "TASK-001" / "secret").glob("*.log"))
+    assert len(output_files) == 1
+    evidence = output_files[0].read_text(encoding="utf-8")
+    assert "[REDACTED:aws-access-key-id]" in evidence
+    assert "AKIAIOSFODNN7EXAMPLE" not in evidence
 
 
 def test_check_returns_nonzero_for_failed_command(tmp_path: Path) -> None:
