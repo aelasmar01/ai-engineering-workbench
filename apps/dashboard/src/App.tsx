@@ -341,6 +341,11 @@ function TaskView({
             </button>
           ))}
         </div>
+        {actionMutation.isError ? (
+          <p className="muted" role="alert">
+            {actionMutation.error.message}
+          </p>
+        ) : null}
       </section>
       <section className="panel">
         <h2>Acceptance</h2>
@@ -524,10 +529,7 @@ function useTaskAction() {
         headers: body ? { "Content-Type": "application/json" } : undefined,
         method: "POST"
       });
-      const payload = (await response.json()) as { error?: string };
-      if (payload.error) {
-        throw new Error(payload.error);
-      }
+      await parseJsonResponse<unknown>(response);
       await queryClient.invalidateQueries({ queryKey: ["dashboard-state"] });
     }
   });
@@ -535,10 +537,19 @@ function useTaskAction() {
 
 async function fetchDashboardState(): Promise<DashboardState> {
   const response = await fetch(`${apiBaseUrl}/dashboard/state`);
+  return parseJsonResponse<DashboardState>(response);
+}
+
+async function parseJsonResponse<T>(response: Response): Promise<T> {
+  const payload = (await response.json()) as T | { detail?: string };
   if (!response.ok) {
-    throw new Error(`Dashboard request failed: ${response.status}`);
+    const detail =
+      typeof payload === "object" && payload !== null && "detail" in payload
+        ? payload.detail
+        : undefined;
+    throw new Error(detail ?? `Dashboard request failed: ${response.status}`);
   }
-  return (await response.json()) as DashboardState;
+  return payload as T;
 }
 
 function formatDate(value: string | null) {

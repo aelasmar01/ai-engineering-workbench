@@ -7,7 +7,7 @@ from pathlib import Path
 
 from workbench.config.harness import load_harness
 from workbench.database.repositories import ProjectRepository, TaskRepository, WorktreeRepository
-from workbench.domain.errors import ValidationError
+from workbench.domain.errors import NotFoundError, ValidationError
 
 
 @dataclass(frozen=True)
@@ -72,15 +72,15 @@ def summarize_task_diff(
     task = task_repository.get(task_id)
     if task is None:
         msg = f"task does not exist: {task_id}"
-        raise ValidationError(msg)
+        raise NotFoundError(msg)
     project = project_repository.get(task.project_id)
     if project is None:
         msg = f"project does not exist for task {task.id}: {task.project_id}"
-        raise ValidationError(msg)
+        raise NotFoundError(msg)
     worktree = worktree_repository.get_active_for_task(task.id)
     if worktree is None:
         msg = f"task has no active worktree: {task.id}"
-        raise ValidationError(msg)
+        raise NotFoundError(msg)
     harness = load_harness(project.harness_configuration_path)
     protected_paths = harness.protected_paths
     file_stats = _collect_numstat(worktree.worktree_path, worktree.base_branch)

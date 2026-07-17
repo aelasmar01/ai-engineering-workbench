@@ -15,7 +15,7 @@ from workbench.database.repositories import (
 )
 from workbench.domain.agents import AgentSession, AgentSessionCreate
 from workbench.domain.enums import AgentProvider, AgentRole, AgentSessionStatus
-from workbench.domain.errors import ValidationError
+from workbench.domain.errors import NotFoundError, ValidationError
 
 
 def list_agent_providers() -> list[dict[str, str | bool]]:
@@ -45,15 +45,15 @@ def launch_agent_session(
     task = task_repository.get(task_id)
     if task is None:
         msg = f"task does not exist: {task_id}"
-        raise ValidationError(msg)
+        raise NotFoundError(msg)
     project = project_repository.get(task.project_id)
     if project is None:
         msg = f"project does not exist for task {task.id}: {task.project_id}"
-        raise ValidationError(msg)
+        raise NotFoundError(msg)
     worktree = worktree_repository.get_active_for_task(task.id)
     if worktree is None:
         msg = f"task has no active worktree: {task.id}"
-        raise ValidationError(msg)
+        raise NotFoundError(msg)
 
     adapters = available_adapters()
     adapter = adapters[provider]
@@ -115,7 +115,7 @@ def refresh_agent_session_status(
     session = agent_session_repository.get(session_id)
     if session is None:
         msg = f"agent session does not exist: {session_id}"
-        raise ValidationError(msg)
+        raise NotFoundError(msg)
     adapter = available_adapters()[session.agent_provider]
     status_result = adapter.status(session)
     end_time = status_result.end_time
@@ -141,7 +141,7 @@ def stop_agent_session(
     session = agent_session_repository.get(session_id)
     if session is None:
         msg = f"agent session does not exist: {session_id}"
-        raise ValidationError(msg)
+        raise NotFoundError(msg)
     adapter = available_adapters()[session.agent_provider]
     adapter.stop(session)
     return agent_session_repository.update_status(

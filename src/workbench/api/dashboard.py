@@ -6,7 +6,6 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from workbench.config.settings import WorkbenchSettings
 from workbench.database.models import (
     AcceptanceCriterionResultRecord,
     AgentSessionRecord,
@@ -17,7 +16,6 @@ from workbench.database.models import (
     ValidationRunRecord,
     WorktreeRecord,
 )
-from workbench.database.session import create_sqlite_engine, initialize_database
 from workbench.domain.enums import (
     AcceptanceStatus,
     AgentSessionStatus,
@@ -29,39 +27,33 @@ from workbench.domain.enums import (
 )
 
 
-def build_dashboard_state(settings: WorkbenchSettings) -> dict[str, Any]:
-    engine = create_sqlite_engine(settings.database_path)
-    initialize_database(engine)
-    with Session(engine) as session:
-        projects = list(session.scalars(select(ProjectRecord).order_by(ProjectRecord.id)).all())
-        tasks = list(session.scalars(select(TaskRecord).order_by(TaskRecord.id)).all())
-        worktrees = list(session.scalars(select(WorktreeRecord).order_by(WorktreeRecord.id)).all())
-        sessions = list(
-            session.scalars(
-                select(AgentSessionRecord).order_by(AgentSessionRecord.start_time.desc())
-            ).all()
-        )
-        validations = list(
-            session.scalars(
-                select(ValidationRunRecord).order_by(ValidationRunRecord.start_time.desc())
-            ).all()
-        )
-        findings = list(
-            session.scalars(select(ReviewFindingRecord).order_by(ReviewFindingRecord.id)).all()
-        )
-        acceptance = list(
-            session.scalars(
-                select(AcceptanceCriterionResultRecord).order_by(
-                    AcceptanceCriterionResultRecord.task_id,
-                    AcceptanceCriterionResultRecord.criterion_text,
-                )
-            ).all()
-        )
-        pull_requests = list(
-            session.scalars(
-                select(PullRequestRecord).order_by(PullRequestRecord.created_time.desc())
-            ).all()
-        )
+def build_dashboard_state(session: Session) -> dict[str, Any]:
+    projects = list(session.scalars(select(ProjectRecord).order_by(ProjectRecord.id)).all())
+    tasks = list(session.scalars(select(TaskRecord).order_by(TaskRecord.id)).all())
+    worktrees = list(session.scalars(select(WorktreeRecord).order_by(WorktreeRecord.id)).all())
+    sessions = list(
+        session.scalars(select(AgentSessionRecord).order_by(AgentSessionRecord.start_time.desc()))
+        .all()
+    )
+    validations = list(
+        session.scalars(select(ValidationRunRecord).order_by(ValidationRunRecord.start_time.desc()))
+        .all()
+    )
+    findings = list(
+        session.scalars(select(ReviewFindingRecord).order_by(ReviewFindingRecord.id)).all()
+    )
+    acceptance = list(
+        session.scalars(
+            select(AcceptanceCriterionResultRecord).order_by(
+                AcceptanceCriterionResultRecord.task_id,
+                AcceptanceCriterionResultRecord.criterion_text,
+            )
+        ).all()
+    )
+    pull_requests = list(
+        session.scalars(select(PullRequestRecord).order_by(PullRequestRecord.created_time.desc()))
+        .all()
+    )
 
     task_by_id = {task.id: task for task in tasks}
     active_worktree_by_task = {

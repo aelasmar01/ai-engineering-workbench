@@ -7,7 +7,7 @@ from uuid import uuid4
 
 from workbench.database.repositories import ProjectRepository, TaskRepository, WorktreeRepository
 from workbench.domain.enums import TaskStatus
-from workbench.domain.errors import ValidationError
+from workbench.domain.errors import NotFoundError, ValidationError
 from workbench.domain.status import ensure_task_transition_allowed
 from workbench.domain.tasks import Task
 from workbench.domain.worktrees import Worktree, WorktreeCreate
@@ -44,11 +44,11 @@ def start_task_worktree(
     task = task_repository.get(task_id)
     if task is None:
         msg = f"task does not exist: {task_id}"
-        raise ValidationError(msg)
+        raise NotFoundError(msg)
     project = project_repository.get(task.project_id)
     if project is None:
         msg = f"project does not exist for task {task.id}: {task.project_id}"
-        raise ValidationError(msg)
+        raise NotFoundError(msg)
     if worktree_repository.get_active_for_task(task.id) is not None:
         msg = f"task already has an active worktree: {task.id}"
         raise ValidationError(msg)
@@ -92,7 +92,7 @@ def remove_task_worktree(
     worktree = worktree_repository.get_active_for_task(task_id)
     if worktree is None:
         msg = f"task has no active worktree: {task_id}"
-        raise ValidationError(msg)
+        raise NotFoundError(msg)
     remove_worktree(worktree.repository_path, worktree.worktree_path)
     return worktree_repository.mark_removed(worktree.id)
 

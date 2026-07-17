@@ -16,7 +16,7 @@ from workbench.database.repositories import (
     WorktreeRepository,
 )
 from workbench.domain.enums import ValidationStatus
-from workbench.domain.errors import ValidationError
+from workbench.domain.errors import NotFoundError, ValidationError
 from workbench.domain.validation import ValidationRun, ValidationRunCreate
 from workbench.evidence.redaction import redact_secrets
 
@@ -40,15 +40,15 @@ def run_validation(
     task = task_repository.get(request.task_id)
     if task is None:
         msg = f"task does not exist: {request.task_id}"
-        raise ValidationError(msg)
+        raise NotFoundError(msg)
     project = project_repository.get(task.project_id)
     if project is None:
         msg = f"project does not exist for task {task.id}: {task.project_id}"
-        raise ValidationError(msg)
+        raise NotFoundError(msg)
     worktree = worktree_repository.get_active_for_task(task.id)
     if worktree is None:
         msg = f"task has no active worktree: {task.id}"
-        raise ValidationError(msg)
+        raise NotFoundError(msg)
     harness = load_harness(project.harness_configuration_path)
     check_names = [request.only] if request.only else task.required_checks
     if not check_names:
