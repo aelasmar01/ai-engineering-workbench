@@ -15,6 +15,7 @@ class ValidationRunCreate(BaseModel):
     id: str = Field(min_length=1)
     task_id: str = Field(min_length=1)
     worktree_id: str = Field(min_length=1)
+    run_group_id: str | None = Field(default=None, min_length=1)
     check_name: str = Field(min_length=1)
     command: list[str] = Field(min_length=1)
     start_time: datetime

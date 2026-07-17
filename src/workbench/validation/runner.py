@@ -55,6 +55,7 @@ def run_validation(
         check_names = list(harness.commands)
 
     runs: list[ValidationRun] = []
+    run_group_id = str(uuid4())
     for check_name in check_names:
         configured_commands = harness.commands.get(check_name)
         if configured_commands is None:
@@ -65,6 +66,7 @@ def run_validation(
                 _run_one_command(
                     task_id=task.id,
                     worktree_id=worktree.id,
+                    run_group_id=run_group_id,
                     check_name=check_name,
                     command_text=command_text,
                     command_index=index,
@@ -81,6 +83,7 @@ def _run_one_command(
     *,
     task_id: str,
     worktree_id: str,
+    run_group_id: str,
     check_name: str,
     command_text: str,
     command_index: int,
@@ -98,6 +101,7 @@ def _run_one_command(
         return _record_configuration_error(
             task_id=task_id,
             worktree_id=worktree_id,
+            run_group_id=run_group_id,
             check_name=check_name,
             command=command,
             command_index=command_index,
@@ -137,6 +141,7 @@ def _run_one_command(
                 id=run_id,
                 task_id=task_id,
                 worktree_id=worktree_id,
+                run_group_id=run_group_id,
                 check_name=check_name,
                 command=command,
                 start_time=start,
@@ -164,6 +169,7 @@ def _run_one_command(
             id=run_id,
             task_id=task_id,
             worktree_id=worktree_id,
+            run_group_id=run_group_id,
             check_name=check_name,
             command=command,
             start_time=start,
@@ -183,6 +189,7 @@ def _record_configuration_error(
     *,
     task_id: str,
     worktree_id: str,
+    run_group_id: str,
     check_name: str,
     command: list[str],
     command_index: int,
@@ -208,6 +215,7 @@ def _record_configuration_error(
             id=run_id,
             task_id=task_id,
             worktree_id=worktree_id,
+            run_group_id=run_group_id,
             check_name=check_name,
             command=command,
             start_time=now,

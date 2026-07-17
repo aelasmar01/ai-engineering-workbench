@@ -22,6 +22,7 @@ class PortfolioExport(BaseModel):
     merged_prs: int = Field(ge=0)
     projects_advanced: int = Field(ge=0)
     validation_pass_rate: float | None = Field(default=None, ge=0, le=1)
+    unattributed_validation_runs: int = Field(ge=0)
     tests_added: int = Field(ge=0)
     experiments_completed: int = Field(ge=0)
     architecture_decisions: int = Field(ge=0)

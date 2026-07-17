@@ -10,6 +10,7 @@
     "merged_prs",
     "projects_advanced",
     "validation_pass_rate",
+    "unattributed_validation_runs",
     "tests_added",
     "experiments_completed",
     "architecture_decisions",
@@ -38,6 +39,10 @@
       "type": ["number", "null"],
       "minimum": 0,
       "maximum": 1
+    },
+    "unattributed_validation_runs": {
+      "type": "integer",
+      "minimum": 0
     },
     "tests_added": {
       "type": "integer",

@@ -3,9 +3,12 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
+from sqlalchemy import select
 from typer.testing import CliRunner
 
 from workbench.cli.main import app
+from workbench.database.models import ValidationRunRecord
+from workbench.database.session import create_session_factory, create_sqlite_engine
 
 
 def run_git(path: Path, *args: str) -> str:
@@ -141,6 +144,33 @@ def test_check_records_timeout(tmp_path: Path) -> None:
     assert check.exit_code == 1
     assert '"status": "timed_out"' in check.output
     assert "timed_out_after_seconds" in check.output
+
+
+def test_check_stamps_distinct_run_group_per_invocation(tmp_path: Path) -> None:
+    runner = CliRunner()
+    data_dir = tmp_path / "data"
+    env = {"WORKBENCH_DATA_DIR": str(data_dir)}
+    create_registered_project(tmp_path, runner, env)
+    import_and_start_task(tmp_path, runner, env)
+
+    first = runner.invoke(app, ["check", "TASK-001", "--only", "test", "--json"], env=env)
+    second = runner.invoke(app, ["check", "TASK-001", "--only", "test", "--json"], env=env)
+
+    assert first.exit_code == 0
+    assert second.exit_code == 0
+    engine = create_sqlite_engine(data_dir / "workbench.sqlite")
+    session_factory = create_session_factory(engine)
+    with session_factory() as session:
+        groups = list(
+            session.scalars(
+                select(ValidationRunRecord.run_group_id)
+                .where(ValidationRunRecord.task_id == "TASK-001")
+                .order_by(ValidationRunRecord.start_time)
+            )
+        )
+    assert len(groups) == 2
+    assert all(group is not None for group in groups)
+    assert groups[0] != groups[1]
 
 
 def test_check_rejects_unconfigured_check(tmp_path: Path) -> None:

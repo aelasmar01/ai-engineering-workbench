@@ -51,12 +51,16 @@ def build_portfolio_export(session: Session, *, period: str | None = None) -> Po
         for validation in validations
         if _record_in_period(validation.start_time, export_period)
     ]
+    validation_pass_rate, unattributed_validation_runs = _validation_execution_stats(
+        period_validations
+    )
     return PortfolioExport(
         period=export_period,
         generated_at=generated_at,
         merged_prs=len(merged_prs),
         projects_advanced=len({task.project_id for task in period_tasks if task.date_started}),
-        validation_pass_rate=_validation_pass_rate(period_validations),
+        validation_pass_rate=validation_pass_rate,
+        unattributed_validation_runs=unattributed_validation_runs,
         tests_added=_tests_added(period_tasks),
         experiments_completed=sum(1 for task in period_tasks if task.type == TaskType.EVALUATION),
         architecture_decisions=_architecture_decisions(period_tasks),
@@ -87,11 +91,26 @@ def validate_portfolio_export(payload: dict[str, object]) -> PortfolioExport:
     return PortfolioExport.model_validate(payload)
 
 
-def _validation_pass_rate(validations: list[ValidationRunRecord]) -> float | None:
+def _validation_execution_stats(
+    validations: list[ValidationRunRecord],
+) -> tuple[float | None, int]:
     if not validations:
-        return None
-    passed = sum(1 for validation in validations if validation.status == ValidationStatus.PASSED)
-    return round(passed / len(validations), 4)
+        return None, 0
+    grouped: dict[tuple[str, str], list[ValidationRunRecord]] = {}
+    unattributed = 0
+    for validation in validations:
+        if validation.run_group_id is None:
+            unattributed += 1
+            continue
+        grouped.setdefault((validation.run_group_id, validation.check_name), []).append(validation)
+    if not grouped:
+        return None, unattributed
+    passed = sum(
+        1
+        for runs in grouped.values()
+        if all(run.status == ValidationStatus.PASSED for run in runs)
+    )
+    return round(passed / len(grouped), 4), unattributed
 
 
 def _tests_added(tasks: list[TaskRecord]) -> int:

@@ -328,6 +328,7 @@ def _validation_payload(
     return {
         "id": validation.id,
         "task_id": validation.task_id,
+        "run_group_id": validation.run_group_id,
         "task_title": task.title if task else "",
         "check_name": validation.check_name,
         "status": validation.status.value,
