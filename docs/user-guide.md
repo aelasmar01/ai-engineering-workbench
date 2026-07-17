@@ -9,7 +9,8 @@ lifecycle support, validation command execution with evidence capture, and local
 agent adapter/session support, acceptance matrix tracking, deterministic diff
 risk classification, review finding persistence, and GitHub CLI based
 pull-request preparation/creation. The dashboard reads actual persisted state
-from the local API.
+from the local API. Portfolio metrics can be exported as sanitized JSON for a
+static site.
 
 ## Install
 
@@ -58,14 +59,14 @@ uv run workbench acceptance verify TASK_ID --criterion "Criterion" --evidence-ty
 uv run workbench pr prepare TASK_ID
 uv run workbench pr create TASK_ID --yes
 uv run workbench pr status TASK_ID
+uv run workbench metrics show
+uv run workbench metrics export --format json --output portfolio-metrics.json
 uv run workbench worktree list
 uv run workbench worktree remove TASK_ID --yes
 make api
 make dashboard
 make dev
 ```
-
-Portfolio export is planned for a later milestone.
 
 ## Worktrees
 
@@ -174,3 +175,24 @@ validation runs, review findings, acceptance criteria, PR records, and metrics.
 
 Task detail actions call backend endpoints for start, block, unblock, and
 complete. Start still performs the same Git worktree safety checks as the CLI.
+
+## Portfolio export
+
+Show current-period metrics:
+
+```bash
+uv run workbench metrics show
+```
+
+Export JSON for a static GitHub Pages site:
+
+```bash
+uv run workbench metrics export --format json --output portfolio-metrics.json
+```
+
+Use `--period YYYY-MM` to export a specific month. The export includes approved
+aggregate fields and merged-PR highlights only. It excludes local paths, raw
+prompts, session transcripts, validation logs, environment variables, private
+repository owner/name details, sensitive review text, and unpublished work.
+
+The public contract is documented in `schemas/portfolio-export.schema.json`.

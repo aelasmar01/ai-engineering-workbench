@@ -36,6 +36,7 @@ from workbench.database.session import (
 from workbench.domain.agents import AgentSession
 from workbench.domain.enums import AgentProvider, AgentRole
 from workbench.domain.errors import WorkbenchError
+from workbench.domain.metrics import PortfolioExport
 from workbench.domain.projects import Project
 from workbench.domain.pull_requests import PullRequest
 from workbench.domain.review import AcceptanceCriterionResult, ReviewFinding
@@ -49,6 +50,7 @@ from workbench.github.pull_requests import (
     create_pull_request,
     prepare_pull_request,
 )
+from workbench.metrics.export import build_portfolio_export
 from workbench.projects.registry import register_project, validate_project_path
 from workbench.review.diff import DiffRiskSummary, summarize_task_diff
 from workbench.review.service import (
@@ -69,6 +71,7 @@ agent_app = typer.Typer(help="Launch and inspect local agent sessions.")
 finding_app = typer.Typer(help="Inspect and resolve review findings.")
 acceptance_app = typer.Typer(help="Inspect and verify acceptance criteria.")
 pr_app = typer.Typer(help="Prepare and create GitHub pull requests.")
+metrics_app = typer.Typer(help="Show and export sanitized portfolio metrics.")
 app.add_typer(project_app, name="project")
 app.add_typer(task_app, name="task")
 app.add_typer(worktree_app, name="worktree")
@@ -76,6 +79,7 @@ app.add_typer(agent_app, name="agent")
 app.add_typer(finding_app, name="finding")
 app.add_typer(acceptance_app, name="acceptance")
 app.add_typer(pr_app, name="pr")
+app.add_typer(metrics_app, name="metrics")
 console = Console()
 error_console = Console(stderr=True)
 
@@ -202,6 +206,15 @@ def _pull_request_context() -> tuple[
         PullRequestRepository(session),
         settings,
     )
+
+
+def _metrics_context() -> tuple[Any, WorkbenchSettings]:
+    settings = load_settings()
+    engine = create_sqlite_engine(settings.database_path)
+    initialize_database(engine)
+    session_factory = create_session_factory(engine)
+    session = session_factory()
+    return session, settings
 
 
 def _project_payload(project: Project) -> dict[str, Any]:
@@ -405,6 +418,10 @@ def _created_pr_payload(created: CreatedPullRequest) -> dict[str, Any]:
     }
 
 
+def _portfolio_export_payload(export: PortfolioExport) -> dict[str, Any]:
+    return export.model_dump(mode="json")
+
+
 def _print_project_table(projects: list[Project]) -> None:
     table = Table(title="Registered Projects")
     table.add_column("ID")
@@ -585,6 +602,31 @@ def _print_pull_request(pull_request: PullRequest, *, title: str = "Pull Request
         pull_request.pull_request_url,
     )
     console.print(table)
+
+
+def _print_portfolio_export(export: PortfolioExport) -> None:
+    table = Table(title=f"Portfolio Metrics ({export.period})")
+    table.add_column("Metric")
+    table.add_column("Value")
+    payload = _portfolio_export_payload(export)
+    for key in (
+        "merged_prs",
+        "projects_advanced",
+        "validation_pass_rate",
+        "tests_added",
+        "experiments_completed",
+        "architecture_decisions",
+        "security_findings_fixed",
+    ):
+        value = payload[key]
+        table.add_row(key, "" if value is None else str(value))
+    console.print(table)
+    if export.highlights:
+        console.print("Highlights:")
+        for highlight in export.highlights:
+            console.print(
+                f"- {highlight.project}: {highlight.title} ({highlight.pull_request_url})"
+            )
 
 
 def _exit_with_error(message: str) -> NoReturn:
@@ -1581,3 +1623,50 @@ def pr_status(
         console.print(json.dumps(_pull_request_payload(pull_request), indent=2))
     else:
         _print_pull_request(pull_request, title=f"Pull Request for {task_id}")
+
+
+@metrics_app.command("show")
+def metrics_show(
+    period: str | None = typer.Option(None, "--period", help="Metric period as YYYY-MM."),
+    json_output: bool = typer.Option(False, "--json", help="Emit JSON output."),
+) -> None:
+    """Show sanitized portfolio metrics for one period."""
+    session, _settings = _metrics_context()
+    try:
+        export = build_portfolio_export(session, period=period)
+    except WorkbenchError as error:
+        _exit_with_error(str(error))
+    finally:
+        session.close()
+    if json_output:
+        console.print(json.dumps(_portfolio_export_payload(export), indent=2))
+    else:
+        _print_portfolio_export(export)
+
+
+@metrics_app.command("export")
+def metrics_export(
+    export_format: str = typer.Option("json", "--format", help="Export format."),
+    period: str | None = typer.Option(None, "--period", help="Metric period as YYYY-MM."),
+    output: Annotated[
+        Path | None,
+        typer.Option("--output", "-o", help="Write export to a file."),
+    ] = None,
+) -> None:
+    """Export sanitized portfolio metrics for a static portfolio site."""
+    if export_format != "json":
+        _exit_with_error(f"unsupported metrics export format: {export_format}")
+    session, _settings = _metrics_context()
+    try:
+        export = build_portfolio_export(session, period=period)
+    except WorkbenchError as error:
+        _exit_with_error(str(error))
+    finally:
+        session.close()
+    payload = json.dumps(_portfolio_export_payload(export), indent=2)
+    if output is not None:
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(f"{payload}\n", encoding="utf-8")
+        console.print(f"Wrote sanitized portfolio metrics to {output}")
+        return
+    console.print(payload)

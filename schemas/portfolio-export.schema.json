@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.local/ai-engineering-workbench/portfolio-export.schema.json",
+  "title": "AI Engineering Workbench Portfolio Export",
+  "description": "Sanitized public portfolio metrics export for static sites.",
+  "type": "object",
+  "required": [
+    "period",
+    "generated_at",
+    "merged_prs",
+    "projects_advanced",
+    "validation_pass_rate",
+    "tests_added",
+    "experiments_completed",
+    "architecture_decisions",
+    "security_findings_fixed",
+    "highlights"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "period": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}$"
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "merged_prs": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "projects_advanced": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "validation_pass_rate": {
+      "type": ["number", "null"],
+      "minimum": 0,
+      "maximum": 1
+    },
+    "tests_added": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "experiments_completed": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "architecture_decisions": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "security_findings_fixed": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "highlights": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["project", "title", "pull_request_url", "portfolio_signals"],
+        "additionalProperties": false,
+        "properties": {
+          "project": {
+            "type": "string",
+            "minLength": 1
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1
+          },
+          "pull_request_url": {
+            "type": "string",
+            "minLength": 1
+          },
+          "portfolio_signals": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -4,7 +4,7 @@ AI Engineering Workbench is a local-first control plane for a single developer
 using Git worktrees, Codex, Claude Code, GitHub CLI, and deterministic validation
 to complete reviewable engineering tasks across multiple repositories.
 
-This repository currently contains the Milestone 9 foundation. It includes
+This repository currently contains the Milestone 10 foundation. It includes
 typed domain schemas, SQLite schema initialization, project/task persistence,
 task batch validation, deterministic task status-transition rules, harness
 parsing, Git repository validation, project registry CLI commands, task import,
@@ -14,9 +14,11 @@ agent adapter/session support, acceptance matrix tracking, deterministic diff
 risk classification, review finding persistence, and GitHub CLI based
 pull-request preparation/creation. The local dashboard now reads persisted state
 from the API and exposes operational views for today, projects, tasks, sessions,
-validation, review, and metrics.
+validation, review, and metrics. Sanitized portfolio metrics can be exported as
+JSON for a static GitHub Pages site.
 
-It does not yet implement portfolio export.
+The initial milestone plan is implemented through portfolio export. End-to-end
+MVP hardening and traceability are still pending.
 
 ## Requirements
 
@@ -67,6 +69,8 @@ uv run workbench acceptance verify TASK_ID --criterion "Criterion" --evidence-ty
 uv run workbench pr prepare TASK_ID
 uv run workbench pr create TASK_ID --yes
 uv run workbench pr status TASK_ID
+uv run workbench metrics show
+uv run workbench metrics export --format json --output portfolio-metrics.json
 uv run workbench worktree list
 uv run workbench worktree remove TASK_ID --yes
 make api
@@ -116,6 +120,9 @@ The API and dashboard bind to localhost by default.
   the created PR URL.
 - The dashboard calls the localhost API, displays real persisted records, and
   provides task start/block/unblock/complete actions through backend endpoints.
+- Portfolio export emits only approved aggregate metrics and merged-PR
+  highlights. It excludes local paths, raw prompts, session transcripts, logs,
+  environment values, and repository owner/name details.
 
 ## Repository Layout
 
