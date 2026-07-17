@@ -193,4 +193,4 @@ def _git(path: Path, args: list[str]) -> str:
         detail = result.stderr.strip() or result.stdout.strip() or "unknown Git error"
         msg = f"git command failed: git -C {path} {' '.join(args)}: {detail}"
         raise ValidationError(msg)
-    return result.stdout.strip()
+    return result.stdout.rstrip("\n")
