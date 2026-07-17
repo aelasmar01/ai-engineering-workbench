@@ -25,7 +25,7 @@ from workbench.domain.enums import (
     TaskStatus,
     WorktreeStatus,
 )
-from workbench.domain.errors import DuplicateEntityError, ValidationError
+from workbench.domain.errors import DuplicateEntityError, NotFoundError, ValidationError
 from workbench.domain.projects import Project, ProjectCreate
 from workbench.domain.pull_requests import PullRequest, PullRequestCreate
 from workbench.domain.review import (
@@ -85,7 +85,7 @@ class ProjectRepository:
         record = self._session.get(ProjectRecord, project_id)
         if record is None:
             msg = f"project does not exist: {project_id}"
-            raise ValidationError(msg)
+            raise NotFoundError(msg)
         record.status = ProjectStatus.INACTIVE
         record.date_updated = utc_now()
         self._session.flush()
@@ -153,7 +153,7 @@ class TaskRepository:
         record = self._session.get(TaskRecord, task_id)
         if record is None:
             msg = f"task does not exist: {task_id}"
-            raise ValidationError(msg)
+            raise NotFoundError(msg)
         ensure_task_transition_allowed(record.status, next_status)
         record.status = next_status
         now = utc_now()
@@ -209,7 +209,7 @@ class TaskRepository:
         record = self._session.get(TaskRecord, task_id)
         if record is None:
             msg = f"task does not exist: {task_id}"
-            raise ValidationError(msg)
+            raise NotFoundError(msg)
         return record
 
 
@@ -264,7 +264,7 @@ class WorktreeRepository:
         record = self._session.get(WorktreeRecord, worktree_id)
         if record is None:
             msg = f"worktree does not exist: {worktree_id}"
-            raise ValidationError(msg)
+            raise NotFoundError(msg)
         record.status = WorktreeStatus.REMOVED
         record.date_removed = utc_now()
         self._session.flush()
@@ -358,7 +358,7 @@ class AgentSessionRepository:
         record = self._session.get(AgentSessionRecord, session_id)
         if record is None:
             msg = f"agent session does not exist: {session_id}"
-            raise ValidationError(msg)
+            raise NotFoundError(msg)
         record.status = status
         record.exit_code = exit_code
         record.end_time = end_time
@@ -377,7 +377,7 @@ class AgentSessionRepository:
         record = self._session.get(AgentSessionRecord, session_id)
         if record is None:
             msg = f"agent session does not exist: {session_id}"
-            raise ValidationError(msg)
+            raise NotFoundError(msg)
         record.exit_code = exit_code
         record.end_time = end_time
         record.status = status
@@ -475,7 +475,7 @@ class ReviewFindingRepository:
         record = self._session.get(ReviewFindingRecord, finding_id)
         if record is None:
             msg = f"review finding does not exist: {finding_id}"
-            raise ValidationError(msg)
+            raise NotFoundError(msg)
         record.status = ReviewFindingStatus.RESOLVED
         record.resolution_explanation = explanation
         self._session.flush()

@@ -11,7 +11,7 @@ from workbench.database.repositories import (
     WorktreeRepository,
 )
 from workbench.domain.enums import AcceptanceStatus, ReviewFindingStatus
-from workbench.domain.errors import ValidationError
+from workbench.domain.errors import NotFoundError, ValidationError
 from workbench.domain.review import (
     AcceptanceCriterionResult,
     AcceptanceCriterionResultCreate,
@@ -30,7 +30,7 @@ def acceptance_matrix(
     task = task_repository.get(task_id)
     if task is None:
         msg = f"task does not exist: {task_id}"
-        raise ValidationError(msg)
+        raise NotFoundError(msg)
     existing = {
         result.criterion_text: result for result in acceptance_repository.list_for_task(task_id)
     }
@@ -70,7 +70,7 @@ def verify_acceptance_criterion(
     task = task_repository.get(task_id)
     if task is None:
         msg = f"task does not exist: {task_id}"
-        raise ValidationError(msg)
+        raise NotFoundError(msg)
     if criterion_text not in task.acceptance_criteria:
         msg = f"criterion is not part of task {task_id}: {criterion_text}"
         raise ValidationError(msg)

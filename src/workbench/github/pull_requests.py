@@ -18,7 +18,7 @@ from workbench.database.repositories import (
     WorktreeRepository,
 )
 from workbench.domain.enums import AcceptanceStatus, PullRequestStatus, ValidationStatus
-from workbench.domain.errors import ValidationError
+from workbench.domain.errors import NotFoundError, ValidationError
 from workbench.domain.projects import Project
 from workbench.domain.pull_requests import PullRequest, PullRequestCreate
 from workbench.domain.review import AcceptanceCriterionResult, ReviewFinding
@@ -401,15 +401,15 @@ def _load_context(
     task = task_repository.get(task_id)
     if task is None:
         msg = f"task does not exist: {task_id}"
-        raise ValidationError(msg)
+        raise NotFoundError(msg)
     project = project_repository.get(task.project_id)
     if project is None:
         msg = f"project does not exist for task {task_id}: {task.project_id}"
-        raise ValidationError(msg)
+        raise NotFoundError(msg)
     worktree = worktree_repository.get_active_for_task(task_id)
     if worktree is None:
         msg = f"task has no active worktree: {task_id}"
-        raise ValidationError(msg)
+        raise NotFoundError(msg)
     return _PullRequestContext(task=task, project=project, worktree=worktree)
 
 
