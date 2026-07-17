@@ -14,7 +14,9 @@ MVP traceability and the end-to-end smoke workflow are documented in
 [docs/mvp-verification.md](docs/mvp-verification.md). Release notes are in
 [docs/releases/0.1.0.md](docs/releases/0.1.0.md). A live manual testing flow
 using `https://github.com/aelasmar01/testing-repo.git` is documented in
-[docs/testing-repo-workflow.md](docs/testing-repo-workflow.md).
+[docs/testing-repo-workflow.md](docs/testing-repo-workflow.md). Validation
+sandboxing is deferred in
+[ADR 0002: Sandboxed Validation](docs/decisions/0002-sandboxed-validation.md).
 
 ## Requirements
 
@@ -97,11 +99,13 @@ The API and dashboard bind to localhost by default.
   workbench data directory after safety checks for dirty repositories, detached
   HEAD state, branch collisions, and worktree path collisions.
 - Validation runs execute configured `harness.yaml` command groups in the task
-  worktree, capture raw stdout/stderr, preserve exit codes, apply timeouts, and
-  persist evidence metadata in SQLite.
+  worktree, redact known secret patterns before evidence is written, preserve
+  exit codes, apply timeouts, stamp grouped check invocations, and persist
+  evidence metadata in SQLite.
 - Agent sessions use provider-independent adapters for manual, Codex CLI, and
   Claude Code. Codex and Claude are invoked through local command-line tools
-  only, not model APIs.
+  only, not model APIs. CLI agents run under a supervisor that records exit
+  codes and protects status checks from PID reuse.
 - Diff review classifies changed files with deterministic path and file-name
   rules for protected paths, dependencies, CI, infrastructure, security,
   migrations, test files, documentation, untracked files, and binary files.
@@ -118,7 +122,12 @@ The API and dashboard bind to localhost by default.
   provides task start/block/unblock/complete actions through backend endpoints.
 - Portfolio export emits only approved aggregate metrics and merged-PR
   highlights. It excludes local paths, raw prompts, session transcripts, logs,
-  environment values, and repository owner/name details.
+  environment values, and repository owner/name details. Validation pass rate is
+  calculated per grouped check execution, and legacy unattributed validation
+  rows are counted separately.
+- Validation commands still execute on the host. Review `workbench diff` for
+  executable configuration changes before running checks until the deferred
+  sandboxed validation runner is implemented.
 
 ## Repository Layout
 
