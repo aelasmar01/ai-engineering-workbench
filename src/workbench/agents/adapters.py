@@ -9,6 +9,7 @@ from pathlib import Path
 from workbench.agents.base import PreparedSession, RunningSession
 from workbench.domain.agents import AgentSession
 from workbench.domain.enums import AgentProvider, AgentRole, AgentSessionStatus
+from workbench.domain.errors import ValidationError
 from workbench.domain.tasks import Task
 from workbench.domain.worktrees import Worktree
 
@@ -69,8 +70,7 @@ class CliAgentAdapter:
         self._default_command = default_command
 
     def executable(self) -> str | None:
-        configured = os.environ.get(self._env_var, self._default_command)
-        return shutil.which(configured)
+        return shutil.which(self._configured_command())
 
     def is_available(self) -> bool:
         return self.executable() is not None
@@ -85,7 +85,14 @@ class CliAgentAdapter:
         log_path: Path,
     ) -> PreparedSession:
         executable = self.executable()
-        command = [executable or self._default_command, str(packet_path)]
+        if executable is None:
+            command_name = self._configured_command()
+            msg = (
+                f"agent executable not found: {command_name}; "
+                f"set {self._env_var} or install it"
+            )
+            raise ValidationError(msg)
+        command = [executable, str(packet_path)]
         return PreparedSession(
             provider=self.provider,
             role=role,
@@ -125,6 +132,9 @@ class CliAgentAdapter:
     def stop(self, session: AgentSession) -> None:
         if session.process_id is not None and _process_exists(session.process_id):
             os.kill(session.process_id, signal.SIGTERM)
+
+    def _configured_command(self) -> str:
+        return os.environ.get(self._env_var, self._default_command)
 
 
 def codex_adapter() -> CliAgentAdapter:

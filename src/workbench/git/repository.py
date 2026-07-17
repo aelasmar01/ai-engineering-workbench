@@ -65,6 +65,14 @@ def ensure_branch_missing(path: Path, branch_name: str) -> None:
     if branch_ref:
         msg = f"branch already exists: {branch_name}"
         raise ValidationError(msg)
+    remote_ref_name = f"refs/remotes/origin/{branch_name}"
+    remote_branch_ref = _git_optional(
+        path,
+        ["rev-parse", "--verify", "--quiet", remote_ref_name],
+    )
+    if remote_branch_ref:
+        msg = f"branch already exists: {remote_ref_name}"
+        raise ValidationError(msg)
 
 
 def ensure_worktree_path_available(worktree_path: Path) -> None:
@@ -75,11 +83,15 @@ def ensure_worktree_path_available(worktree_path: Path) -> None:
 
 def create_worktree(path: Path, worktree_path: Path, branch_name: str, base_branch: str) -> None:
     worktree_path.parent.mkdir(parents=True, exist_ok=True)
-    _git(path, ["worktree", "add", "-b", branch_name, str(worktree_path), base_branch])
+    _git(
+        path,
+        ["worktree", "add", "-b", branch_name, str(worktree_path), base_branch],
+        timeout=300,
+    )
 
 
 def remove_worktree(path: Path, worktree_path: Path) -> None:
-    _git(path, ["worktree", "remove", str(worktree_path)])
+    _git(path, ["worktree", "remove", str(worktree_path)], timeout=300)
 
 
 def list_worktree_paths(path: Path) -> list[Path]:
@@ -91,7 +103,7 @@ def list_worktree_paths(path: Path) -> list[Path]:
     return paths
 
 
-def _git(path: Path, args: list[str]) -> str:
+def _git(path: Path, args: list[str], *, timeout: int = 15) -> str:
     git = _git_executable()
     # Git execution is an explicit integration boundary using a resolved executable and argv list.
     result = subprocess.run(  # nosec B603
@@ -99,7 +111,7 @@ def _git(path: Path, args: list[str]) -> str:
         capture_output=True,
         check=False,
         text=True,
-        timeout=15,
+        timeout=timeout,
     )
     if result.returncode != 0:
         detail = result.stderr.strip() or result.stdout.strip() or "unknown Git error"
@@ -108,7 +120,7 @@ def _git(path: Path, args: list[str]) -> str:
     return result.stdout.strip()
 
 
-def _git_optional(path: Path, args: list[str]) -> str:
+def _git_optional(path: Path, args: list[str], *, timeout: int = 15) -> str:
     git = _git_executable()
     # Git execution is an explicit integration boundary using a resolved executable and argv list.
     result = subprocess.run(  # nosec B603
@@ -116,7 +128,7 @@ def _git_optional(path: Path, args: list[str]) -> str:
         capture_output=True,
         check=False,
         text=True,
-        timeout=15,
+        timeout=timeout,
     )
     if result.returncode != 0:
         return ""

@@ -432,7 +432,7 @@ def _ensure_github_remote(remote_url: str) -> None:
 
 def _repository_name(project: Project) -> str:
     match = re.search(
-        r"github\.com[:/](?P<owner>[^/]+)/(?P<name>[^/.]+)(?:\.git)?",
+        r"github\.com[:/](?P<owner>[^/]+)/(?P<name>.+?)(?:\.git)?/?$",
         project.remote_url,
     )
     if match is None:
