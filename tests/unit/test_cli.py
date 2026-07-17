@@ -6,6 +6,7 @@ from pytest import MonkeyPatch
 from typer.testing import CliRunner
 
 from workbench.cli import main as cli_main
+from workbench.cli import runtime as cli_runtime
 from workbench.cli.main import app
 
 
@@ -16,6 +17,40 @@ def test_version_command() -> None:
 
     assert result.exit_code == 0
     assert "AI Engineering Workbench" in result.output
+
+
+def test_cli_surface_snapshot() -> None:
+    command_names = sorted(
+        command.name or command.callback.__name__.replace("_", "-")
+        for command in app.registered_commands
+    )
+    group_commands = {
+        group.name: sorted(
+            command.name or command.callback.__name__.replace("_", "-")
+            for command in group.typer_instance.registered_commands
+        )
+        for group in app.registered_groups
+    }
+
+    assert command_names == [
+        "check",
+        "dashboard",
+        "diff",
+        "doctor",
+        "evidence",
+        "review",
+        "version",
+    ]
+    assert group_commands == {
+        "acceptance": ["matrix", "verify"],
+        "agent": ["launch", "list", "status", "stop"],
+        "finding": ["list", "resolve"],
+        "metrics": ["export", "show"],
+        "pr": ["create", "prepare", "status"],
+        "project": ["add", "disable", "list", "show", "validate"],
+        "task": ["add", "block", "complete", "list", "next", "show", "start", "unblock"],
+        "worktree": ["list", "remove"],
+    }
 
 
 def test_doctor_json_reports_dependencies(
@@ -70,6 +105,7 @@ def test_doctor_exits_one_when_required_dependency_missing(
         return f"/fake/bin/{executable}"
 
     monkeypatch.setattr(cli_main, "resolve_executable", resolve)
+    monkeypatch.setattr(cli_runtime, "resolve_executable", resolve)
     runner = CliRunner()
 
     result = runner.invoke(
