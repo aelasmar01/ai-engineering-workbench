@@ -18,6 +18,7 @@ from workbench.database.repositories import (
 from workbench.domain.enums import ValidationStatus
 from workbench.domain.errors import ValidationError
 from workbench.domain.validation import ValidationRun, ValidationRunCreate
+from workbench.evidence.redaction import redact_secrets
 
 
 @dataclass(frozen=True)
@@ -237,19 +238,22 @@ def _write_output(
     status: ValidationStatus,
     exit_code: int | None,
 ) -> None:
+    redacted_command = redact_secrets(shlex.join(command))
+    redacted_stdout = redact_secrets(stdout)
+    redacted_stderr = redact_secrets(stderr)
     output_path.write_text(
         "\n".join(
             [
-                f"command: {shlex.join(command)}",
+                f"command: {redacted_command}",
                 f"cwd: {cwd}",
                 f"status: {status.value}",
                 f"exit_code: {exit_code}",
                 "",
                 "stdout:",
-                stdout,
+                redacted_stdout,
                 "",
                 "stderr:",
-                stderr,
+                redacted_stderr,
             ]
         ),
         encoding="utf-8",
