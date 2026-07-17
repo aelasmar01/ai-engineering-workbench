@@ -201,3 +201,9 @@ The public contract is documented in `schemas/portfolio-export.schema.json`.
 
 The current end-to-end smoke workflow and requirements traceability table are
 documented in `docs/mvp-verification.md`.
+
+## Live testing repository
+
+Use `docs/testing-repo-workflow.md` to manually test the full workflow against
+`https://github.com/aelasmar01/testing-repo.git` with the sample task in
+`examples/testing-repo-task.yaml`.
