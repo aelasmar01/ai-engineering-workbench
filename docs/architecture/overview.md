@@ -26,8 +26,9 @@ The system must inspect exit codes and stored evidence before marking work ready
 The current implementation establishes module boundaries, the Milestone 1
 domain/persistence slice, the Milestone 2 project registry slice, the Milestone
 3 task backlog slice, the Milestone 4 worktree lifecycle slice, the Milestone 5
-validation engine slice, the Milestone 6 agent adapter slice, and the Milestone
-7 acceptance/review slice, and the Milestone 8 pull-request workflow slice:
+validation engine slice, the Milestone 6 agent adapter slice, the Milestone 7
+acceptance/review slice, the Milestone 8 pull-request workflow slice, and the
+Milestone 9 operational dashboard slice:
 
 - `src/workbench/domain` for provider-independent rules.
 - `src/workbench/git` and `src/workbench/worktrees` for Git integration.
@@ -36,7 +37,7 @@ validation engine slice, the Milestone 6 agent adapter slice, and the Milestone
 - `src/workbench/review` for deterministic diff summaries and risk findings.
 - `src/workbench/github` for GitHub CLI integration and PR orchestration.
 - `src/workbench/cli` and `src/workbench/api` for local interfaces.
-- `apps/dashboard` for the local operational UI.
+- `apps/dashboard` for the local operational UI backed by the API.
 
 SQLite mappings live in `src/workbench/database/models.py`. Project and task
 repositories live in `src/workbench/database/repositories.py`. Task schema
@@ -68,5 +69,10 @@ Acceptance matrix and review finding domain types live in
 Pull-request persistence lives in `src/workbench/domain/pull_requests.py` and
 `PullRequestRepository`. GitHub CLI execution and PR body/readiness orchestration
 live in `src/workbench/github`.
+
+Dashboard state aggregation lives in `src/workbench/api/dashboard.py`, with
+localhost API routes exposed from `src/workbench/api/app.py`. The React
+dashboard in `apps/dashboard` uses TanStack Query to poll persisted state and
+mutate task actions.
 
 Portfolio export is not implemented yet.

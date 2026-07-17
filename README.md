@@ -4,7 +4,7 @@ AI Engineering Workbench is a local-first control plane for a single developer
 using Git worktrees, Codex, Claude Code, GitHub CLI, and deterministic validation
 to complete reviewable engineering tasks across multiple repositories.
 
-This repository currently contains the Milestone 8 foundation. It includes
+This repository currently contains the Milestone 9 foundation. It includes
 typed domain schemas, SQLite schema initialization, project/task persistence,
 task batch validation, deterministic task status-transition rules, harness
 parsing, Git repository validation, project registry CLI commands, task import,
@@ -12,7 +12,9 @@ task listing, task detail, deterministic next-task selection, and Git worktree
 lifecycle support, validation command execution with evidence capture, and local
 agent adapter/session support, acceptance matrix tracking, deterministic diff
 risk classification, review finding persistence, and GitHub CLI based
-pull-request preparation/creation.
+pull-request preparation/creation. The local dashboard now reads persisted state
+from the API and exposes operational views for today, projects, tasks, sessions,
+validation, review, and metrics.
 
 It does not yet implement portfolio export.
 
@@ -69,6 +71,7 @@ uv run workbench worktree list
 uv run workbench worktree remove TASK_ID --yes
 make api
 make dashboard
+make dev
 ```
 
 The API and dashboard bind to localhost by default.
@@ -111,6 +114,8 @@ The API and dashboard bind to localhost by default.
   diff risk. PR creation requires explicit `--yes`, checks GitHub CLI
   authentication, pushes the task branch, invokes `gh pr create`, and persists
   the created PR URL.
+- The dashboard calls the localhost API, displays real persisted records, and
+  provides task start/block/unblock/complete actions through backend endpoints.
 
 ## Repository Layout
 
