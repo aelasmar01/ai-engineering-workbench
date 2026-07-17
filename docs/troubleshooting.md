@@ -147,3 +147,28 @@ PR creation requires:
 
 The command pushes only the task branch and then invokes `gh pr create`. It does
 not merge the PR.
+
+## Dashboard shows `API unavailable`
+
+The dashboard reads state from the local API. Start both processes with:
+
+```bash
+make dev
+```
+
+Or run them separately:
+
+```bash
+make api
+make dashboard
+```
+
+The API must be reachable at `http://127.0.0.1:8787`, and the dashboard runs at
+`http://127.0.0.1:5173`.
+
+## Dashboard actions fail
+
+Task actions use the same backend rules as the CLI. A start action can fail when
+the repository is dirty, detached, missing the base branch, or already has a
+colliding branch/worktree. Block and complete actions can fail when the task
+status transition is invalid.
