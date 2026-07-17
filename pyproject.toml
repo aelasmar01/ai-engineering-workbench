@@ -1,6 +1,6 @@
 [project]
 name = "ai-engineering-workbench"
-version = "0.1.0"
+version = "0.1.1"
 description = "Local-first control plane for AI-assisted engineering workflows."
 readme = "README.md"
 requires-python = ">=3.12"
