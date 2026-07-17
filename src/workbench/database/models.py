@@ -134,6 +134,7 @@ class ValidationRunRecord(Base):
     id: Mapped[str] = mapped_column(String(120), primary_key=True)
     task_id: Mapped[str] = mapped_column(ForeignKey("tasks.id"), nullable=False, index=True)
     worktree_id: Mapped[str] = mapped_column(ForeignKey("worktrees.id"), nullable=False, index=True)
+    run_group_id: Mapped[str | None] = mapped_column(String(120), nullable=True, index=True)
     check_name: Mapped[str] = mapped_column(String(160), nullable=False)
     command: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
     start_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

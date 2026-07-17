@@ -96,6 +96,7 @@ type SessionSummary = {
 type ValidationSummary = {
   id: string;
   task_id: string;
+  run_group_id: string | null;
   task_title: string;
   check_name: string;
   status: string;

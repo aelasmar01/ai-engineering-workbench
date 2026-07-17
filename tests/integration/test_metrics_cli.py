@@ -112,6 +112,7 @@ def seed_metrics_data(data_dir: Path) -> None:
                 id="validation-1",
                 task_id="RAG-021",
                 worktree_id="worktree-1",
+                run_group_id="validation-group-1",
                 check_name="test",
                 command=["pytest"],
                 start_time=now,
@@ -155,6 +156,7 @@ def test_portfolio_export_is_sanitized_and_schema_valid(tmp_path: Path) -> None:
     assert payload["merged_prs"] == 1
     assert payload["projects_advanced"] == 1
     assert payload["validation_pass_rate"] == 1.0
+    assert payload["unattributed_validation_runs"] == 0
     assert payload["experiments_completed"] == 1
     assert payload["security_findings_fixed"] == 1
     assert payload["highlights"] == [
