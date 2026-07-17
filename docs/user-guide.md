@@ -196,3 +196,8 @@ prompts, session transcripts, validation logs, environment variables, private
 repository owner/name details, sensitive review text, and unpublished work.
 
 The public contract is documented in `schemas/portfolio-export.schema.json`.
+
+## MVP verification
+
+The current end-to-end smoke workflow and requirements traceability table are
+documented in `docs/mvp-verification.md`.

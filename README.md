@@ -17,8 +17,9 @@ from the API and exposes operational views for today, projects, tasks, sessions,
 validation, review, and metrics. Sanitized portfolio metrics can be exported as
 JSON for a static GitHub Pages site.
 
-The initial milestone plan is implemented through portfolio export. End-to-end
-MVP hardening and traceability are still pending.
+The initial milestone plan is implemented through portfolio export. MVP
+traceability and the end-to-end smoke workflow are documented in
+[docs/mvp-verification.md](docs/mvp-verification.md).
 
 ## Requirements
 
@@ -142,4 +143,6 @@ scripts         Developer utility scripts
 
 See [docs/architecture/overview.md](docs/architecture/overview.md) for the
 initial architecture and [docs/decisions/0001-local-first-control-plane.md](docs/decisions/0001-local-first-control-plane.md)
-for the first architecture decision record.
+for the first architecture decision record. See
+[docs/mvp-verification.md](docs/mvp-verification.md) for the current fulfillment
+matrix.
