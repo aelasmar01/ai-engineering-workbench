@@ -28,7 +28,8 @@ domain/persistence slice, the Milestone 2 project registry slice, the Milestone
 3 task backlog slice, the Milestone 4 worktree lifecycle slice, the Milestone 5
 validation engine slice, the Milestone 6 agent adapter slice, the Milestone 7
 acceptance/review slice, the Milestone 8 pull-request workflow slice, and the
-Milestone 9 operational dashboard slice:
+Milestone 9 operational dashboard slice, and the Milestone 10 portfolio export
+slice:
 
 - `src/workbench/domain` for provider-independent rules.
 - `src/workbench/git` and `src/workbench/worktrees` for Git integration.
@@ -36,6 +37,7 @@ Milestone 9 operational dashboard slice:
 - `src/workbench/validation` and `src/workbench/evidence` for checks and proof.
 - `src/workbench/review` for deterministic diff summaries and risk findings.
 - `src/workbench/github` for GitHub CLI integration and PR orchestration.
+- `src/workbench/metrics` for sanitized portfolio export.
 - `src/workbench/cli` and `src/workbench/api` for local interfaces.
 - `apps/dashboard` for the local operational UI backed by the API.
 
@@ -75,4 +77,6 @@ localhost API routes exposed from `src/workbench/api/app.py`. The React
 dashboard in `apps/dashboard` uses TanStack Query to poll persisted state and
 mutate task actions.
 
-Portfolio export is not implemented yet.
+Portfolio export domain models live in `src/workbench/domain/metrics.py`.
+Sanitized export calculation lives in `src/workbench/metrics/export.py`, and the
+public JSON contract lives in `schemas/portfolio-export.schema.json`.

@@ -172,3 +172,17 @@ Task actions use the same backend rules as the CLI. A start action can fail when
 the repository is dirty, detached, missing the base branch, or already has a
 colliding branch/worktree. Block and complete actions can fail when the task
 status transition is invalid.
+
+## `workbench metrics export` is empty
+
+The portfolio export includes only merged pull-request highlights for the
+selected period. Confirm that:
+
+- A PR record exists for the task.
+- The PR record status is `merged`.
+- The merged or created timestamp is in the selected `--period`.
+- The task has portfolio signals if you expect signal tags.
+
+The export intentionally excludes local paths, raw prompts, session transcripts,
+validation logs, environment variables, private repository owner/name details,
+sensitive finding details, and unpublished work.
