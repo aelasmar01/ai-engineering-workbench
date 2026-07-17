@@ -17,9 +17,11 @@ class AgentSessionCreate(BaseModel):
     agent_provider: AgentProvider
     agent_role: AgentRole
     process_id: int | None = None
+    process_create_time: float | None = None
     command_used: list[str] = Field(default_factory=list)
     prompt_packet_location: Path
     log_location: Path
+    status_file_path: Path | None = None
     start_time: datetime
     end_time: datetime | None = None
     last_activity_time: datetime | None = None

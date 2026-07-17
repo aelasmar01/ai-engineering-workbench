@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Protocol
 
@@ -26,6 +27,15 @@ class RunningSession:
     process_id: int | None
     status: AgentSessionStatus
     exit_code: int | None = None
+    process_create_time: float | None = None
+    status_file_path: Path | None = None
+
+
+@dataclass(frozen=True)
+class SessionStatusResult:
+    status: AgentSessionStatus
+    exit_code: int | None = None
+    end_time: datetime | None = None
 
 
 class AgentAdapter(Protocol):
@@ -49,7 +59,7 @@ class AgentAdapter(Protocol):
     def launch(self, prepared_session: PreparedSession) -> RunningSession:
         ...
 
-    def status(self, session: AgentSession) -> AgentSessionStatus:
+    def status(self, session: AgentSession) -> SessionStatusResult:
         ...
 
     def stop(self, session: AgentSession) -> None:

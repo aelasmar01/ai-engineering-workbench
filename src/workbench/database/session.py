@@ -5,8 +5,9 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
-from sqlalchemy import Engine, create_engine, event
+from sqlalchemy import Engine, create_engine, event, inspect, text
 from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.schema import Column
 
 from workbench.database.models import Base
 
@@ -30,6 +31,27 @@ def create_sqlite_engine(database_path: Path) -> Engine:
 
 def initialize_database(engine: Engine) -> None:
     Base.metadata.create_all(engine)
+    ensure_schema_upgrades(engine)
+
+
+def ensure_schema_upgrades(engine: Engine) -> None:
+    inspector = inspect(engine)
+    existing_tables = set(inspector.get_table_names())
+    with engine.begin() as connection:
+        for table in Base.metadata.sorted_tables:
+            if table.name not in existing_tables:
+                continue
+            existing_columns = {column["name"] for column in inspector.get_columns(table.name)}
+            for column in table.columns:
+                if column.name in existing_columns or not column.nullable:
+                    continue
+                column_sql = _compile_column_for_sqlite(column, engine)
+                connection.execute(text(f"ALTER TABLE {table.name} ADD COLUMN {column_sql}"))
+
+
+def _compile_column_for_sqlite(column: Column[Any], engine: Engine) -> str:
+    column_type = column.type.compile(dialect=engine.dialect)
+    return f"{column.name} {column_type}"
 
 
 def create_session_factory(engine: Engine) -> sessionmaker[Session]:

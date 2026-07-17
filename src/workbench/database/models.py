@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import JSON, DateTime, Enum, ForeignKey, Integer, String, Text
+from sqlalchemy import JSON, DateTime, Enum, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 from workbench.domain.enums import (
@@ -112,9 +112,11 @@ class AgentSessionRecord(Base):
         Enum(AgentRole, values_callable=enum_values), nullable=False
     )
     process_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    process_create_time: Mapped[float | None] = mapped_column(Float, nullable=True)
     command_used: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
     prompt_packet_location: Mapped[str] = mapped_column(Text, nullable=False)
     log_location: Mapped[str] = mapped_column(Text, nullable=False)
+    status_file_path: Mapped[str | None] = mapped_column(Text, nullable=True)
     start_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     end_time: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     last_activity_time: Mapped[datetime | None] = mapped_column(
