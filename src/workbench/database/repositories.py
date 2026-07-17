@@ -318,9 +318,15 @@ class AgentSessionRepository:
             agent_provider=agent_session.agent_provider,
             agent_role=agent_session.agent_role,
             process_id=agent_session.process_id,
+            process_create_time=agent_session.process_create_time,
             command_used=agent_session.command_used,
             prompt_packet_location=str(agent_session.prompt_packet_location),
             log_location=str(agent_session.log_location),
+            status_file_path=(
+                None
+                if agent_session.status_file_path is None
+                else str(agent_session.status_file_path)
+            ),
             start_time=agent_session.start_time,
             end_time=agent_session.end_time,
             last_activity_time=agent_session.last_activity_time,
@@ -356,6 +362,25 @@ class AgentSessionRepository:
         record.status = status
         record.exit_code = exit_code
         record.end_time = end_time
+        record.last_activity_time = utc_now()
+        self._session.flush()
+        return _agent_session_from_record(record)
+
+    def update_exit_code(
+        self,
+        session_id: str,
+        *,
+        exit_code: int | None,
+        end_time: datetime | None,
+        status: AgentSessionStatus,
+    ) -> AgentSession:
+        record = self._session.get(AgentSessionRecord, session_id)
+        if record is None:
+            msg = f"agent session does not exist: {session_id}"
+            raise ValidationError(msg)
+        record.exit_code = exit_code
+        record.end_time = end_time
+        record.status = status
         record.last_activity_time = utc_now()
         self._session.flush()
         return _agent_session_from_record(record)
@@ -579,9 +604,11 @@ def _agent_session_from_record(record: AgentSessionRecord) -> AgentSession:
         agent_provider=record.agent_provider,
         agent_role=record.agent_role,
         process_id=record.process_id,
+        process_create_time=record.process_create_time,
         command_used=record.command_used,
         prompt_packet_location=Path(record.prompt_packet_location),
         log_location=Path(record.log_location),
+        status_file_path=None if record.status_file_path is None else Path(record.status_file_path),
         start_time=record.start_time,
         end_time=record.end_time,
         last_activity_time=record.last_activity_time,

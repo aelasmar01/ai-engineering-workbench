@@ -94,9 +94,11 @@ def launch_agent_session(
             agent_provider=provider,
             agent_role=role,
             process_id=running.process_id,
+            process_create_time=running.process_create_time,
             command_used=prepared.command,
             prompt_packet_location=packet_path,
             log_location=log_path,
+            status_file_path=running.status_file_path,
             start_time=now,
             last_activity_time=now,
             exit_code=running.exit_code,
@@ -115,12 +117,18 @@ def refresh_agent_session_status(
         msg = f"agent session does not exist: {session_id}"
         raise ValidationError(msg)
     adapter = available_adapters()[session.agent_provider]
-    status = adapter.status(session)
-    end_time = datetime.now(UTC) if status in _TERMINAL_STATUSES else session.end_time
-    return agent_session_repository.update_status(
+    status_result = adapter.status(session)
+    end_time = status_result.end_time
+    if end_time is None:
+        end_time = (
+            datetime.now(UTC)
+            if status_result.status in _TERMINAL_STATUSES
+            else session.end_time
+        )
+    return agent_session_repository.update_exit_code(
         session_id,
-        status,
-        exit_code=session.exit_code,
+        status=status_result.status,
+        exit_code=status_result.exit_code,
         end_time=end_time,
     )
 
