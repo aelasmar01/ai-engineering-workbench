@@ -11,6 +11,7 @@ from workbench.database.models import (
     AcceptanceCriterionResultRecord,
     AgentSessionRecord,
     ProjectRecord,
+    PullRequestRecord,
     ReviewFindingRecord,
     TaskRecord,
     ValidationRunRecord,
@@ -26,6 +27,7 @@ from workbench.domain.enums import (
 )
 from workbench.domain.errors import DuplicateEntityError, ValidationError
 from workbench.domain.projects import Project, ProjectCreate
+from workbench.domain.pull_requests import PullRequest, PullRequestCreate
 from workbench.domain.review import (
     AcceptanceCriterionResult,
     AcceptanceCriterionResultCreate,
@@ -455,6 +457,49 @@ class ReviewFindingRepository:
         return _review_finding_from_record(record)
 
 
+class PullRequestRepository:
+    def __init__(self, session: Session) -> None:
+        self._session = session
+
+    def upsert(self, pull_request: PullRequestCreate) -> PullRequest:
+        record = self._session.scalars(
+            select(PullRequestRecord).where(PullRequestRecord.task_id == pull_request.task_id)
+        ).first()
+        if record is None:
+            record = PullRequestRecord(
+                id=pull_request.id,
+                task_id=pull_request.task_id,
+                repository=pull_request.repository,
+                branch=pull_request.branch,
+                pull_request_number=pull_request.pull_request_number,
+                pull_request_url=pull_request.pull_request_url,
+                status=pull_request.status,
+                created_time=pull_request.created_time,
+                merged_time=pull_request.merged_time,
+                merge_commit=pull_request.merge_commit,
+            )
+            self._session.add(record)
+        else:
+            record.repository = pull_request.repository
+            record.branch = pull_request.branch
+            record.pull_request_number = pull_request.pull_request_number
+            record.pull_request_url = pull_request.pull_request_url
+            record.status = pull_request.status
+            record.created_time = pull_request.created_time
+            record.merged_time = pull_request.merged_time
+            record.merge_commit = pull_request.merge_commit
+        self._session.flush()
+        return _pull_request_from_record(record)
+
+    def get_for_task(self, task_id: str) -> PullRequest | None:
+        record = self._session.scalars(
+            select(PullRequestRecord).where(PullRequestRecord.task_id == task_id)
+        ).first()
+        if record is None:
+            return None
+        return _pull_request_from_record(record)
+
+
 def _project_from_record(record: ProjectRecord) -> Project:
     return Project(
         id=record.id,
@@ -574,4 +619,19 @@ def _review_finding_from_record(record: ReviewFindingRecord) -> ReviewFinding:
         status=record.status,
         resolution_explanation=record.resolution_explanation,
         reviewer_type=record.reviewer_type,
+    )
+
+
+def _pull_request_from_record(record: PullRequestRecord) -> PullRequest:
+    return PullRequest(
+        id=record.id,
+        task_id=record.task_id,
+        repository=record.repository,
+        branch=record.branch,
+        pull_request_number=record.pull_request_number,
+        pull_request_url=record.pull_request_url,
+        status=record.status,
+        created_time=record.created_time,
+        merged_time=record.merged_time,
+        merge_commit=record.merge_commit,
     )

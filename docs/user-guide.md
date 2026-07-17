@@ -7,7 +7,8 @@ validation, Git repository validation, project registry commands, task import,
 task listing, task detail, deterministic next-task selection, and Git worktree
 lifecycle support, validation command execution with evidence capture, and local
 agent adapter/session support, acceptance matrix tracking, deterministic diff
-risk classification, and review finding persistence.
+risk classification, review finding persistence, and GitHub CLI based
+pull-request preparation/creation.
 
 ## Install
 
@@ -53,11 +54,14 @@ uv run workbench finding list TASK_ID
 uv run workbench finding resolve FINDING_ID --explanation "Reviewed and accepted"
 uv run workbench acceptance matrix TASK_ID
 uv run workbench acceptance verify TASK_ID --criterion "Criterion" --evidence-type manual --evidence-reference "notes"
+uv run workbench pr prepare TASK_ID
+uv run workbench pr create TASK_ID --yes
+uv run workbench pr status TASK_ID
 uv run workbench worktree list
 uv run workbench worktree remove TASK_ID --yes
 ```
 
-PR creation and portfolio export are planned for later milestones.
+Portfolio export is planned for a later milestone.
 
 ## Worktrees
 
@@ -130,3 +134,24 @@ uv run workbench acceptance verify TASK_ID \
   --evidence-type git-diff \
   --evidence-reference "docs/user-guide.md"
 ```
+
+## Pull requests
+
+Prepare the PR body after checks and acceptance evidence are recorded:
+
+```bash
+uv run workbench pr prepare TASK_ID
+```
+
+Inspect the generated body before creating the PR. Creation requires explicit
+confirmation, verifies GitHub CLI authentication, pushes the task branch, and
+uses `gh pr create`:
+
+```bash
+uv run workbench pr create TASK_ID --yes
+uv run workbench pr status TASK_ID
+```
+
+By default, PR creation is blocked when required checks have not passed,
+acceptance criteria are unverified, or high-severity review findings remain
+open.

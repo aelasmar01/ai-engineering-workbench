@@ -121,3 +121,29 @@ Run the matrix command first and copy the criterion text from the task:
 ```bash
 uv run workbench acceptance matrix TASK_ID
 ```
+
+## `workbench pr prepare` fails
+
+PR preparation requires:
+
+- The task exists.
+- The task has an active worktree.
+- The registered project still exists.
+
+Preparation can produce a body even when readiness checks are blocking, so use
+the readiness table to see what must be fixed before creation.
+
+## `workbench pr create` fails
+
+PR creation requires:
+
+- A prepared body from `workbench pr prepare TASK_ID`.
+- Explicit `--yes` confirmation.
+- `gh` installed and authenticated.
+- A GitHub `origin` remote.
+- Passing required checks.
+- Verified acceptance criteria.
+- No unresolved high-severity review findings.
+
+The command pushes only the task branch and then invokes `gh pr create`. It does
+not merge the PR.

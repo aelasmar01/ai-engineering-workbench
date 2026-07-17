@@ -4,16 +4,17 @@ AI Engineering Workbench is a local-first control plane for a single developer
 using Git worktrees, Codex, Claude Code, GitHub CLI, and deterministic validation
 to complete reviewable engineering tasks across multiple repositories.
 
-This repository currently contains the Milestone 7 foundation. It includes
+This repository currently contains the Milestone 8 foundation. It includes
 typed domain schemas, SQLite schema initialization, project/task persistence,
 task batch validation, deterministic task status-transition rules, harness
 parsing, Git repository validation, project registry CLI commands, task import,
 task listing, task detail, deterministic next-task selection, and Git worktree
 lifecycle support, validation command execution with evidence capture, and local
 agent adapter/session support, acceptance matrix tracking, deterministic diff
-risk classification, and review finding persistence.
+risk classification, review finding persistence, and GitHub CLI based
+pull-request preparation/creation.
 
-It does not yet implement pull-request creation or portfolio export.
+It does not yet implement portfolio export.
 
 ## Requirements
 
@@ -61,6 +62,9 @@ uv run workbench review TASK_ID
 uv run workbench finding list TASK_ID
 uv run workbench acceptance matrix TASK_ID
 uv run workbench acceptance verify TASK_ID --criterion "Criterion" --evidence-type manual --evidence-reference "notes"
+uv run workbench pr prepare TASK_ID
+uv run workbench pr create TASK_ID --yes
+uv run workbench pr status TASK_ID
 uv run workbench worktree list
 uv run workbench worktree remove TASK_ID --yes
 make api
@@ -102,6 +106,11 @@ The API and dashboard bind to localhost by default.
   explicit human verification record is persisted.
 - Review findings are persisted and unresolved high-risk findings remain visible
   until explicitly resolved with an explanation.
+- Pull-request preparation generates a structured body from task metadata,
+  validation evidence, acceptance results, review findings, and deterministic
+  diff risk. PR creation requires explicit `--yes`, checks GitHub CLI
+  authentication, pushes the task branch, invokes `gh pr create`, and persists
+  the created PR URL.
 
 ## Repository Layout
 
