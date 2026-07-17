@@ -1,0 +1,19 @@
+tasks:
+  - id: TEST-001
+    project: testing-repo
+    title: Update greeting message
+    type: feature
+    priority: high
+    estimated_minutes: 20
+    objective: Update the testing repository greeting implementation.
+    acceptance_criteria:
+      - Greeting behavior is updated
+    expected_paths:
+      - src
+    required_checks:
+      - test
+      - lint
+    portfolio_signals:
+      - Python engineering
+      - Workbench validation
+    dependencies: []

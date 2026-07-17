@@ -12,7 +12,9 @@ creation, a localhost dashboard, and sanitized portfolio metric export.
 
 MVP traceability and the end-to-end smoke workflow are documented in
 [docs/mvp-verification.md](docs/mvp-verification.md). Release notes are in
-[docs/releases/0.1.0.md](docs/releases/0.1.0.md).
+[docs/releases/0.1.0.md](docs/releases/0.1.0.md). A live manual testing flow
+using `https://github.com/aelasmar01/testing-repo.git` is documented in
+[docs/testing-repo-workflow.md](docs/testing-repo-workflow.md).
 
 ## Requirements
 

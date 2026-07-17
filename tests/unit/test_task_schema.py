@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pytest
 
 from workbench.domain.errors import ValidationError
@@ -104,3 +106,12 @@ def test_validate_task_batch_rejects_protected_target_branch() -> None:
 
     with pytest.raises(ValidationError, match="protected branch"):
         validate_task_batch([task], valid_project_ids={"demo"})
+
+
+def test_testing_repo_example_task_is_valid() -> None:
+    example = Path("examples/testing-repo-task.yaml")
+    tasks = load_task_documents(example.read_text(encoding="utf-8"))
+
+    validated = validate_task_batch(tasks, valid_project_ids={"testing-repo"})
+
+    assert [task.id for task in validated] == ["TEST-001"]
